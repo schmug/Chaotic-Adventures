@@ -8,6 +8,7 @@ import os
 import requests
 import random
 from typing import Dict, Any, List, Optional, Tuple
+from .validation import sanitize_llm_input
 
 # Narrative modifiers ("buffs/debuffs")
 class NarrativeModifier:
@@ -487,8 +488,11 @@ class LLMInterface:
             Generated text response
         """
         try:
+            # Sanitize the input prompt for security
+            sanitized_prompt = sanitize_llm_input(prompt)
+            
             # Apply any active modifiers to the prompt
-            modified_prompt = self._apply_modifiers_to_prompt(prompt)
+            modified_prompt = self._apply_modifiers_to_prompt(sanitized_prompt)
             
             # Set up generation parameters
             generation_params = {

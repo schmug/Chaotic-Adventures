@@ -9,7 +9,7 @@ Version information for Chaotic Adventures.
 # - minor: New features or significant improvements
 # - patch: Bug fixes and small enhancements
 
-__version__ = "1.3.2"
+__version__ = "1.3.3"
 
 def get_version():
     """Return the current version string."""

@@ -8,12 +8,27 @@ import os
 import json
 import uuid
 from flask import Flask, request, jsonify, send_from_directory
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from typing import Dict, Any
 
 from src.backend.game_engine import GameEngine
+from src.backend.validation import (
+    validate_player_name, validate_chaos_level, validate_choice_index,
+    validate_game_id, validate_load_code, validate_request_json,
+    ValidationError, handle_validation_error
+)
 from src.version import get_version, get_version_info
 
 app = Flask(__name__, static_folder='frontend')
+
+# Initialize rate limiter
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 # In-memory store for active games
 # In production, this would be a database
@@ -22,6 +37,14 @@ active_games = {}
 # Save games directory
 SAVE_DIR = os.path.join(os.path.dirname(__file__), '..', 'saved_games')
 os.makedirs(SAVE_DIR, exist_ok=True)
+
+
+# Global error handler for validation errors
+@app.errorhandler(ValidationError)
+def handle_validation_exception(error):
+    """Handle validation errors globally."""
+    response, status_code = handle_validation_error(error)
+    return jsonify(response), status_code
 
 
 @app.route('/')
@@ -37,6 +60,7 @@ def static_files(path):
 
 
 @app.route('/api/start', methods=['POST'])
+@limiter.limit("10 per minute")  # Specific rate limit for game starts
 def start_game():
     """
     Start a new game with the given player name and chaos level.
@@ -54,9 +78,12 @@ def start_game():
         "choices": ["string"]
     }
     """
-    data = request.json
-    player_name = data.get('playerName', 'Anonymous')
-    chaos_level = data.get('chaosLevel', 5)
+    # Validate request data
+    data = validate_request_json(['playerName'], ['chaosLevel'])
+    
+    # Validate and sanitize inputs
+    player_name = validate_player_name(data.get('playerName', 'Anonymous'))
+    chaos_level = validate_chaos_level(data.get('chaosLevel', 5))
     
     # Create a new game
     game_engine = GameEngine()
@@ -87,6 +114,7 @@ def start_game():
 
 
 @app.route('/api/choice', methods=['POST'])
+@limiter.limit("30 per minute")  # Higher limit for choices
 def make_choice():
     """
     Make a choice in the game.
@@ -103,17 +131,20 @@ def make_choice():
         "choices": ["string"]
     }
     """
-    data = request.json
-    game_id = data.get('gameId')
-    choice_index = data.get('choiceIndex')
+    # Validate request data
+    data = validate_request_json(['gameId', 'choiceIndex'])
     
-    if not game_id or choice_index is None:
-        return jsonify({'error': 'Missing required parameters'}), 400
+    # Validate inputs
+    game_id = validate_game_id(data.get('gameId'))
     
-    # Get the game engine
+    # Get the game engine first to check available choices
     game_engine = active_games.get(game_id)
     if not game_engine:
         return jsonify({'error': 'Game not found'}), 404
+    
+    # Validate choice index against available choices
+    max_choices = len(game_engine.get_choices())
+    choice_index = validate_choice_index(data.get('choiceIndex'), max_choices)
     
     # Check for any buffs that might be active before making choice
     active_buffs_before = [buff.copy() for buff in game_engine.state.get('buffs', [])]
@@ -184,6 +215,7 @@ def make_choice():
 
 
 @app.route('/api/summary', methods=['POST'])
+@limiter.limit("5 per minute")  # Lower limit for summaries (more resource intensive)
 def get_summary():
     """
     Get a summary of the game.
@@ -200,13 +232,13 @@ def get_summary():
         "summary": "string"
     }
     """
-    data = request.json
-    game_id = data.get('gameId')
+    # Validate request data
+    data = validate_request_json(['gameId'], ['gameOver', 'finalChoice'])
+    
+    # Validate inputs
+    game_id = validate_game_id(data.get('gameId'))
     game_over = data.get('gameOver', False)
     final_choice = data.get('finalChoice')
-    
-    if not game_id:
-        return jsonify({'error': 'Missing required parameters'}), 400
     
     # Get the game engine
     game_engine = active_games.get(game_id)
@@ -229,6 +261,7 @@ def get_summary():
 
 
 @app.route('/api/save', methods=['POST'])
+@limiter.limit("10 per minute")  # Moderate limit for saves
 def save_game():
     """
     Save the current game state.
@@ -244,11 +277,11 @@ def save_game():
         "saveCode": "string"
     }
     """
-    data = request.json
-    game_id = data.get('gameId')
+    # Validate request data
+    data = validate_request_json(['gameId'])
     
-    if not game_id:
-        return jsonify({'error': 'Missing required parameters'}), 400
+    # Validate inputs
+    game_id = validate_game_id(data.get('gameId'))
     
     # Get the game engine
     game_engine = active_games.get(game_id)
@@ -269,6 +302,7 @@ def save_game():
 
 
 @app.route('/api/load', methods=['POST'])
+@limiter.limit("10 per minute")  # Moderate limit for loads
 def load_game():
     """
     Load a saved game.
@@ -288,11 +322,11 @@ def load_game():
         "choices": ["string"]
     }
     """
-    data = request.json
-    load_code = data.get('loadCode')
+    # Validate request data
+    data = validate_request_json(['loadCode'])
     
-    if not load_code:
-        return jsonify({'error': 'Missing required parameters'}), 400
+    # Validate inputs
+    load_code = validate_load_code(data.get('loadCode'))
     
     # Check if the save file exists
     save_path = os.path.join(SAVE_DIR, f"{load_code}.json")
@@ -395,6 +429,7 @@ def get_active_buffs():
 
 
 @app.route('/api/buffs/add', methods=['POST'])
+@limiter.limit("20 per minute")  # Moderate limit for buff additions
 def add_buff():
     """
     Add a narrative buff to a game.
@@ -416,12 +451,12 @@ def add_buff():
         }
     }
     """
-    data = request.json
-    game_id = data.get('gameId')
-    buff_name = data.get('buffName')
+    # Validate request data
+    data = validate_request_json(['gameId', 'buffName'])
     
-    if not game_id or not buff_name:
-        return jsonify({'error': 'Missing required parameters'}), 400
+    # Validate inputs
+    game_id = validate_game_id(data.get('gameId'))
+    buff_name = validate_player_name(data.get('buffName'))  # Reuse player name validation for buff names
     
     # Get the game engine
     game_engine = active_games.get(game_id)
@@ -614,6 +649,7 @@ def get_model_info():
 
 
 @app.route('/api/model/upgrade', methods=['POST'])
+@limiter.limit("5 per minute")  # Lower limit for model upgrades
 def upgrade_model():
     """
     Upgrade the narrative model for a game.
@@ -632,11 +668,11 @@ def upgrade_model():
         "tier_info": {...}
     }
     """
-    data = request.json
-    game_id = data.get('gameId')
+    # Validate request data
+    data = validate_request_json(['gameId'])
     
-    if not game_id:
-        return jsonify({'error': 'Missing required parameters'}), 400
+    # Validate inputs
+    game_id = validate_game_id(data.get('gameId'))
     
     # Get the game engine
     game_engine = active_games.get(game_id)
@@ -650,6 +686,7 @@ def upgrade_model():
 
 
 @app.route('/api/model/add-points', methods=['POST'])
+@limiter.limit("10 per minute")  # Moderate limit for adding points
 def add_model_points():
     """
     Manually add upgrade points to a game.
@@ -669,12 +706,16 @@ def add_model_points():
         "upgrades_available": number
     }
     """
-    data = request.json
-    game_id = data.get('gameId')
-    points = data.get('points', 1)
+    # Validate request data
+    data = validate_request_json(['gameId'], ['points'])
     
-    if not game_id:
-        return jsonify({'error': 'Missing required parameters'}), 400
+    # Validate inputs
+    game_id = validate_game_id(data.get('gameId'))
+    
+    # Validate points (limit to reasonable range)
+    points = data.get('points', 1)
+    if not isinstance(points, int) or points < 1 or points > 100:
+        raise ValidationError("Points must be an integer between 1 and 100", "points")
     
     # Get the game engine
     game_engine = active_games.get(game_id)

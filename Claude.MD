@@ -62,6 +62,13 @@ An open-source, choose-your-own-adventure style text-based game leveraging a loc
 - **Ensure** generated code integrates easily with GitLab's automated CI/CD pipeline.
 
 ## 📝 Version History
+- **v1.3.3**:
+  - **SECURITY UPDATE**: Add comprehensive input validation with length limits
+  - **SECURITY UPDATE**: Implement rate limiting on all API endpoints
+  - **SECURITY UPDATE**: Update critical dependencies (cryptography, urllib3, certifi)
+  - Add LLM input sanitization to prevent injection attacks
+  - Add structured error handling for validation failures
+
 - **v1.3.2**:
   - Fix browser LLM mode screen transition issues
   - Add enhanced error handling for LLM initialization
