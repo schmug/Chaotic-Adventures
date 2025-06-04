@@ -1,0 +1,35 @@
+image: node:18-bullseye
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
+  NPM_CACHE_DIR: "$CI_PROJECT_DIR/.npm-cache"
+
+# Cache dependencies between jobs and pipelines
+cache:
+  paths:
+    - .pip-cache/
+    - .npm-cache/
+
+stages:
+  - test
+
+before_script:
+  - apt-get update
+  - apt-get install -y python3 python3-pip
+  - python3 -V
+  - pip3 install -r requirements.txt
+
+# Run tests for the application
+test:
+  stage: test
+  script:
+    - python3 -m pytest tests/
+    # Add environment variable to avoid real LLM calls
+    - export MOCK_LLM=true
+    # Allow failures for linting and type checking initially
+    - flake8 src/ tests/ || echo "Linting issues found, but continuing"
+    - mypy src/ tests/ || echo "Type checking issues found, but continuing"
+  only:
+    - main
+    - merge_requests
+

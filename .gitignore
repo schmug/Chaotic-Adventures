@@ -1,0 +1,37 @@
+build-errors.log
+worker-errors.log
+pipeline-errors.log
+next-steps.md
+browser-errors.log
+
+# Python bytecode files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+console.log
+chaotic-adventures.cory7593.workers.dev.har
+answers.txt
+screenshot.png
+console-errors.log
+.DS_Store
+
+# logs
+gitlab/
+cloudflare/
+browser/
+CONVERSATION_SUMMARY.md
+
+# Backup and temporary files
+*.bak
+sync_worker_fixed.sh
+rebuild_worker.sh

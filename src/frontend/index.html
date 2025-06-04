@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Chaotic Adventures - NOCACHE v1.0.12</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Import Transformers.js for browser-based LLM -->
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.15.1"></script>
+    <script>
+        // Make Transformers.js available globally
+        window.webllm = window.Xenova?.transformers;
+        if (!window.webllm) {
+            console.warn("Transformers.js not available");
+        }
+        
+        // EMERGENCY DEBUG SCRIPT - Will run even before DOM is loaded
+        window.addEventListener('load', function() {
+            // Create emergency debug panel
+            var debugPanel = document.createElement('div');
+            debugPanel.style.cssText = 'position:fixed; top:0; left:0; right:0; background:red; color:white; padding:10px; z-index:999999; text-align:center; font-weight:bold;';
+            debugPanel.innerHTML = 'DEBUG MODE v1.0.12-NOCACHE (' + new Date().toISOString() + ')';
+            document.body.appendChild(debugPanel);
+            
+            // Create direct test buttons
+            var buttonContainer = document.createElement('div');
+            buttonContainer.style.cssText = 'position:fixed; top:40px; left:0; right:0; background:#333; color:white; padding:10px; z-index:999999; text-align:center;';
+            
+            var testButton = document.createElement('button');
+            testButton.textContent = 'TEST NARRATIVE DISPLAY';
+            testButton.style.cssText = 'background:white; color:black; padding:5px 10px; margin:5px; font-weight:bold;';
+            testButton.onclick = function() {
+                var narrativeEl = document.getElementById('narrative-text');
+                if (narrativeEl) {
+                    narrativeEl.innerHTML = '<span style="color:red; font-weight:bold; font-size:20px;">EMERGENCY TEST TEXT - IF YOU CAN SEE THIS, TEXT DISPLAY WORKS</span>';
+                    alert('Test text has been inserted. If you do not see "EMERGENCY TEST TEXT" in the narrative area, there is a display issue.');
+                } else {
+                    alert('Error: narrative-text element not found!');
+                }
+            };
+            buttonContainer.appendChild(testButton);
+            
+            var checkButton = document.createElement('button');
+            checkButton.textContent = 'CHECK NARRATIVE ELEMENT';
+            checkButton.style.cssText = 'background:white; color:black; padding:5px 10px; margin:5px; font-weight:bold;';
+            checkButton.onclick = function() {
+                var narrativeEl = document.getElementById('narrative-text');
+                if (narrativeEl) {
+                    alert('Narrative element found!\nContent length: ' + narrativeEl.textContent.length + 
+                          '\nInner HTML length: ' + narrativeEl.innerHTML.length +
+                          '\nVisibility: ' + window.getComputedStyle(narrativeEl).visibility +
+                          '\nDisplay: ' + window.getComputedStyle(narrativeEl).display);
+                } else {
+                    alert('Error: narrative-text element not found!');
+                }
+            };
+            buttonContainer.appendChild(checkButton);
+            
+            var fixButton = document.createElement('button');
+            fixButton.textContent = 'FORCE DISPLAY FIX';
+            fixButton.style.cssText = 'background:green; color:white; padding:5px 10px; margin:5px; font-weight:bold;';
+            fixButton.onclick = function() {
+                var gameScreen = document.getElementById('game-screen');
+                var narrativeContainer = document.getElementById('narrative-container');
+                var narrativeText = document.getElementById('narrative-text');
+                
+                if (gameScreen) {
+                    gameScreen.classList.add('active');
+                    gameScreen.style.cssText = 'display:block !important; opacity:1 !important;';
+                }
+                
+                if (narrativeContainer) {
+                    narrativeContainer.style.cssText = 'display:block !important; visibility:visible !important; opacity:1 !important; background-color:yellow !important;';
+                }
+                
+                if (narrativeText) {
+                    narrativeText.style.cssText = 'display:block !important; visibility:visible !important; opacity:1 !important; color:red !important; font-size:16px !important;';
+                    if (!narrativeText.textContent) {
+                        narrativeText.textContent = 'EMERGENCY FALLBACK TEXT - If you see this, the original narrative was empty';
+                    }
+                }
+                
+                alert('Display fix applied!');
+            };
+            buttonContainer.appendChild(fixButton);
+            
+            document.body.appendChild(buttonContainer);
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Chaotic Adventures</h1>
+            <p class="tagline">Where the unexpected becomes reality! (v1.0.12-NOCACHE)</p>
+        </header>
+        
+        <main>
+            <div id="start-screen" class="game-screen active">
+                <h2>Begin Your Chaotic Adventure</h2>
+                <div class="form-group">
+                    <label for="player-name">Enter your name:</label>
+                    <div class="input-row">
+                        <input type="text" id="player-name" placeholder="Your name">
+                        <button id="random-name" type="button" title="Generate random name">🎲</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="chaos-level">Chaos Level (1-10):</label>
+                    <input type="range" id="chaos-level" min="1" max="10" value="5">
+                    <span id="chaos-value">5</span>
+                </div>
+                <div class="form-group llm-options">
+                    <label>LLM Mode:</label>
+                    <div class="radio-group">
+                        <input type="radio" id="llm-mode-mock" name="llm-mode" value="mock" checked>
+                        <label for="llm-mode-mock">Use Mock Responses (Instant)</label>
+                    </div>
+                    <div class="radio-group">
+                        <input type="radio" id="llm-mode-browser" name="llm-mode" value="browser">
+                        <label for="llm-mode-browser">Run LLM in Browser (Offline Play)</label>
+                    </div>
+                    <div class="radio-group">
+                        <input type="radio" id="llm-mode-server" name="llm-mode" value="server">
+                        <label for="llm-mode-server">Use Server API (Best Quality)</label>
+                    </div>
+                </div>
+                <div id="llm-loading" class="hidden">
+                    <p>Preparing model resources... <span id="load-progress">0%</span></p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="model-info">
+                        <p class="small-text">First load may take a few minutes. Model will be cached for future use.</p>
+                    </div>
+                </div>
+                <button id="start-game">Begin Adventure</button>
+            </div>
+            
+            <div id="game-screen" class="game-screen">
+                <div id="narrative-container" style="display: block !important; visibility: visible !important; opacity: 1 !important;">
+                    <p id="narrative-text" style="display: block !important; visibility: visible !important; opacity: 1 !important;"></p>
+                </div>
+                
+                <div id="choices-container">
+                    <h3>What will you do?</h3>
+                    <ul id="choices-list"></ul>
+                </div>
+                
+                <div class="game-controls">
+                    <button id="save-game">Save Game</button>
+                    <button id="load-game">Load Game</button>
+                    <button id="end-game">End Adventure</button>
+                </div>
+            </div>
+            
+            <div id="summary-screen" class="game-screen">
+                <h2>Your Adventure Summary</h2>
+                <div id="summary-container">
+                    <p id="summary-text"></p>
+                </div>
+                <button id="new-game">Start New Adventure</button>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Powered by browser-based LLM - Created for Chaotic Adventures - v1.0.12-NOCACHE</p>
+        </footer>
+    </div>
+    
+    <script src="app.js?v=1.0.12&nocache=true&t=<?php echo time(); ?>"></script>
+    <script>
+        // DIRECT EMERGENCY SCRIPT - Last resort intervention
+        setTimeout(function() {
+            // Create a direct message to the user about caching issues
+            var cachingNotice = document.createElement('div');
+            cachingNotice.style.cssText = 'position:fixed; bottom:0; left:0; right:0; background:orange; color:black; padding:15px; z-index:999999; font-size:18px; text-align:center;';
+            cachingNotice.innerHTML = '<strong>IMPORTANT:</strong> If you do not see a red debug bar at the top of the page, you are viewing a cached version. Please try: <br>' +
+                '1. Hard refresh (Ctrl+F5 or Cmd+Shift+R)<br>' +
+                '2. Clear browser cache<br>' +
+                '3. Open in incognito/private window<br>' +
+                '4. Try a different browser';
+            document.body.appendChild(cachingNotice);
+            
+            // Direct emergency fix for game screen
+            var gameScreen = document.getElementById('game-screen');
+            if (gameScreen) {
+                gameScreen.style.cssText = 'display:block !important; opacity:1 !important; visibility:visible !important;';
+                gameScreen.classList.add('active');
+            }
+            
+            // Direct emergency fix for narrative container
+            var narrativeContainer = document.getElementById('narrative-container');
+            if (narrativeContainer) {
+                narrativeContainer.style.cssText = 'display:block !important; opacity:1 !important; visibility:visible !important; background-color:#ff0 !important; padding:20px !important; margin:20px !important; border:5px solid red !important;';
+            }
+            
+            // Direct emergency fix for narrative text
+            var narrativeText = document.getElementById('narrative-text');
+            if (narrativeText) {
+                narrativeText.innerHTML = '<div style="color:red; font-size:24px; font-weight:bold;">EMERGENCY DIRECT INSERT - v1.0.12-NOCACHE</div>' +
+                    '<div style="color:blue; font-size:18px; margin-top:10px;">If you can see this text, direct DOM insertion works.</div>' +
+                    '<div style="margin-top:20px;">This text was added by a direct script injection at the bottom of the HTML file.</div>' +
+                    '<div style="margin-top:10px;">Current time: ' + new Date().toISOString() + '</div>';
+                
+                narrativeText.style.cssText = 'display:block !important; opacity:1 !important; visibility:visible !important; color:#000 !important; font-size:16px !important;';
+            }
+        }, 1000); // Wait 1 second after page load to apply these changes
+    </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# Configuration for Cloudflare Workers
+name = "chaotic-adventures"
+main = "./public/_worker.js"
+compatibility_date = "2025-02-28"
+
+# Enable logging for debugging
+[observability]
+enabled = true
