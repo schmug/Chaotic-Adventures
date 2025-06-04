@@ -449,6 +449,53 @@ input[type="range"]::-moz-range-thumb {
     display: none !important;
 }
 
+/* OpenRouter Options */
+#openrouter-options {
+    background-color: rgba(106, 13, 173, 0.05);
+    border: 1px solid rgba(106, 13, 173, 0.2);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-top: 1rem;
+    transition: var(--transition);
+}
+
+#openrouter-options.hidden {
+    display: none;
+}
+
+#openrouter-model {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    font-size: 0.9rem;
+    background-color: white;
+    transition: var(--transition);
+}
+
+#openrouter-model:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(106, 13, 173, 0.2);
+}
+
+#openrouter-options .model-info {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-color-light);
+}
+
+#openrouter-options .model-info strong {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+#openrouter-options .model-info small {
+    display: block;
+    margin-top: 0.25rem;
+    opacity: 0.8;
+}
+
 .generating-indicator {
     text-align: center;
     padding: 2.5rem 1.5rem;

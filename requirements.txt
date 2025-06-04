@@ -10,6 +10,8 @@ certifi>=2025.4.26
 
 # LLM interface
 ollama==0.1.5
+httpx==0.28.1  # For async OpenRouter requests
+openai>=1.40.0  # OpenRouter uses OpenAI-compatible API
 
 # Testing
 pytest==8.4.0

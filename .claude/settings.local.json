@@ -36,7 +36,13 @@
       "Bash(python -m pip list:*)",
       "Bash(grep:*)",
       "Bash(python test_security_fixes.py:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(cp:*)",
+      "Bash(python test_openrouter.py:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:chaotic-adventures.cory7593.workers.dev)"
     ],
     "deny": []
   }

@@ -481,6 +481,90 @@ async function startGame() {
             
             // Finally show the game screen
             showScreen('game');
+        }
+        else if (gameState.llmMode === 'openrouter') {
+            try {
+                // Check API availability first
+                const checkResponse = await fetch(`${API.baseUrl}/version`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!checkResponse.ok) {
+                    throw new Error(`API server not available (Status: ${checkResponse.status})`);
+                }
+                
+                if (!gameState.openrouterModel) {
+                    throw new Error('No OpenRouter model selected');
+                }
+                
+                // Start game with OpenRouter
+                const response = await fetch(`${API.baseUrl}${API.startGame}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        playerName: gameState.playerName,
+                        chaosLevel: gameState.chaosLevel,
+                        llmProvider: 'openrouter',
+                        llmModel: gameState.openrouterModel
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('OpenRouter API error:', errorText);
+                    throw new Error(`OpenRouter API error (${response.status}): ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const responseText = await response.text();
+                    console.error('Unexpected response format:', responseText);
+                    throw new Error('Server returned non-JSON response');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.gameId || !data.narrative || !data.choices) {
+                    console.error('Invalid API response structure:', data);
+                    throw new Error('Server returned invalid data structure');
+                }
+                
+                gameState.gameId = data.gameId;
+                gameState.currentNarrative = data.narrative;
+                gameState.choices = data.choices;
+                
+                elements.narrativeText.textContent = data.narrative;
+                renderChoices(data.choices);
+                
+                // Show game screen
+                showScreen('game');
+            } catch (apiError) {
+                console.error('OpenRouter Mode Error:', apiError);
+                alert(`OpenRouter not available: ${apiError.message}\n\nSwitching to Mock mode for now.`);
+                
+                // Switch to mock mode automatically
+                gameState.llmMode = 'mock';
+                elements.llmModeMock.checked = true;
+                
+                // Load the game in mock mode
+                const mockIntro = getMockResponse('intro');
+                gameState.currentNarrative = mockIntro;
+                elements.narrativeText.textContent = mockIntro;
+                
+                // Get mock choices
+                const mockChoices = getMockChoices();
+                gameState.choices = mockChoices;
+                renderChoices(mockChoices);
+                
+                // Show game screen
+                showScreen('game');
+            }
         } 
         else if (gameState.llmMode === 'server') {
             try {
@@ -793,6 +877,76 @@ async function makeChoice(choiceIndex) {
             const choices = parseChoicesFromText(choicesText);
             gameState.choices = choices;
             renderChoices(choices);
+        }
+        else if (gameState.llmMode === 'openrouter') {
+            try {
+                // OpenRouter choice response
+                const response = await fetch(`${API.baseUrl}${API.makeChoice}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        gameId: gameState.gameId,
+                        choiceIndex: choiceIndex
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('OpenRouter API choice error:', errorText);
+                    throw new Error(`OpenRouter API error (${response.status}): ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const responseText = await response.text();
+                    console.error('Unexpected response format:', responseText);
+                    throw new Error('Server returned non-JSON response');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.narrative || !data.choices) {
+                    console.error('Invalid API response structure:', data);
+                    throw new Error('Server returned invalid data structure');
+                }
+                
+                // Handle game over
+                if (data.narrative.game_over) {
+                    gameState.currentNarrative = data.narrative.text;
+                    elements.narrativeText.textContent = data.narrative.text;
+                    
+                    // Show game over message and summary option
+                    setTimeout(() => {
+                        endGame();
+                    }, 2000);
+                    return;
+                }
+                
+                gameState.currentNarrative = data.narrative.text || data.narrative;
+                gameState.choices = data.choices;
+                
+                elements.narrativeText.textContent = gameState.currentNarrative;
+                renderChoices(data.choices);
+                
+            } catch (apiError) {
+                console.error('OpenRouter choice error:', apiError);
+                
+                // Fallback to mock response
+                const mockResponse = getMockResponse('choice');
+                gameState.currentNarrative = mockResponse;
+                elements.narrativeText.textContent = mockResponse;
+                
+                // Get new mock choices
+                const mockChoices = getMockChoices();
+                gameState.choices = mockChoices;
+                renderChoices(mockChoices);
+                
+                // Notify user but allow continuing with mock data
+                alert(`OpenRouter error: ${apiError.message}\nContinuing with mock responses.`);
+            }
         } 
         else if (gameState.llmMode === 'server') {
             try {
@@ -1073,6 +1227,54 @@ async function endGame() {
             const summary = await generateWithBrowserLlm(prompt, 500);
             elements.summaryText.textContent = summary;
             showScreen('summary');
+        }
+        else if (gameState.llmMode === 'openrouter') {
+            try {
+                // OpenRouter summary
+                const response = await fetch(`${API.baseUrl}${API.getSummary}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        gameId: gameState.gameId
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('OpenRouter API summary error:', errorText);
+                    throw new Error(`OpenRouter API error (${response.status}): ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const responseText = await response.text();
+                    console.error('Unexpected response format:', responseText);
+                    throw new Error('Server returned non-JSON response');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.summary) {
+                    console.error('Invalid API response structure:', data);
+                    throw new Error('Server returned invalid data structure');
+                }
+                
+                elements.summaryText.textContent = data.summary;
+                showScreen('summary');
+            } catch (apiError) {
+                console.error('OpenRouter summary error:', apiError);
+                
+                // Fallback to mock summary
+                const mockSummary = getMockResponse('summary');
+                elements.summaryText.textContent = mockSummary;
+                showScreen('summary');
+                
+                // Notify user but continue with mock data
+                alert(`OpenRouter error: ${apiError.message}\nUsing a mock summary instead.`);
+            }
         } 
         else if (gameState.llmMode === 'server') {
             try {

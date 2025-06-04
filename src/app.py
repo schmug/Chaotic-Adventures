@@ -13,6 +13,7 @@ from flask_limiter.util import get_remote_address
 from typing import Dict, Any
 
 from src.backend.game_engine import GameEngine
+from src.backend.enhanced_llm_interface import create_openrouter_interface
 from src.backend.validation import (
     validate_player_name, validate_chaos_level, validate_choice_index,
     validate_game_id, validate_load_code, validate_request_json,
@@ -85,8 +86,17 @@ def start_game():
     player_name = validate_player_name(data.get('playerName', 'Anonymous'))
     chaos_level = validate_chaos_level(data.get('chaosLevel', 5))
     
-    # Create a new game
-    game_engine = GameEngine()
+    # Get LLM provider preference (default to OpenRouter)
+    llm_provider = data.get('llmProvider', 'openrouter')
+    llm_model = data.get('llmModel', None)
+    
+    # Create a new game with specified LLM provider
+    try:
+        game_engine = GameEngine(llm_provider=llm_provider, llm_model=llm_model, api_key=os.getenv('OPENROUTER_API_KEY'))
+    except Exception as e:
+        # Fallback to mock if provider fails
+        print(f"LLM provider {llm_provider} failed, using mock: {e}")
+        game_engine = GameEngine(llm_provider="mock")
     
     # Start the game with provided chaos level
     intro_text = game_engine.start_game(player_name, chaos_level=int(chaos_level))
@@ -731,6 +741,123 @@ def add_model_points():
         'total_points': total_points,
         'upgrades_available': game_engine.state['upgrades_available']
     })
+
+
+@app.route('/api/llm/models', methods=['GET'])
+@limiter.limit("20 per minute")
+def get_llm_models():
+    """
+    Get available LLM models and providers.
+    
+    Response:
+    {
+        "providers": {
+            "openrouter": {
+                "name": "OpenRouter",
+                "description": "High-quality cloud models",
+                "available": boolean,
+                "models": [...]
+            },
+            "mock": {
+                "name": "Mock",
+                "description": "Fast test responses",
+                "available": true,
+                "models": [...]
+            }
+        }
+    }
+    """
+    providers = {
+        "openrouter": {
+            "name": "OpenRouter (Cloud)",
+            "description": "High-quality AI models including Claude and GPT",
+            "available": bool(os.getenv('OPENROUTER_API_KEY')),
+            "models": []
+        },
+        "mock": {
+            "name": "Mock (Testing)",
+            "description": "Fast test responses for development",
+            "available": True,
+            "models": [
+                {
+                    "id": "mock-basic",
+                    "name": "Mock Basic",
+                    "description": "Simple test responses",
+                    "tier": "basic",
+                    "cost_per_1k": 0.0,
+                    "quality": 2
+                },
+                {
+                    "id": "mock-enhanced",
+                    "name": "Mock Enhanced",
+                    "description": "Enhanced test responses",
+                    "tier": "enhanced",
+                    "cost_per_1k": 0.0,
+                    "quality": 3
+                }
+            ]
+        }
+    }
+    
+    # Get OpenRouter models if available
+    if providers["openrouter"]["available"]:
+        try:
+            or_interface = create_openrouter_interface(api_key=os.getenv('OPENROUTER_API_KEY'))
+            providers["openrouter"]["models"] = or_interface.get_available_models()
+        except Exception as e:
+            print(f"Failed to get OpenRouter models: {e}")
+            providers["openrouter"]["available"] = False
+    
+    return jsonify({"providers": providers})
+
+
+@app.route('/api/llm/usage', methods=['GET'])
+@limiter.limit("10 per minute")
+def get_llm_usage():
+    """
+    Get LLM usage statistics for active games.
+    
+    Query parameters:
+    - gameId: string (optional)
+    
+    Response:
+    {
+        "usage": {
+            "total_requests": number,
+            "total_cost": number,
+            "models_used": {...}
+        }
+    }
+    """
+    game_id = request.args.get('gameId')
+    
+    if game_id:
+        game_engine = active_games.get(game_id)
+        if not game_engine:
+            return jsonify({'error': 'Game not found'}), 404
+        
+        if hasattr(game_engine.llm, 'get_usage_stats'):
+            usage = game_engine.llm.get_usage_stats()
+        else:
+            usage = {"message": "Usage tracking not available for this provider"}
+        
+        return jsonify({"usage": usage})
+    else:
+        # Return aggregate usage across all games
+        total_usage = {
+            "total_requests": 0,
+            "total_cost": 0.0,
+            "games_tracked": 0
+        }
+        
+        for gid, engine in active_games.items():
+            if hasattr(engine.llm, 'get_usage_stats'):
+                stats = engine.llm.get_usage_stats()
+                total_usage["total_requests"] += stats.get("total_requests", 0)
+                total_usage["total_cost"] += stats.get("total_cost", 0.0)
+                total_usage["games_tracked"] += 1
+        
+        return jsonify({"usage": total_usage})
 
 
 @app.route('/api/version', methods=['GET'])

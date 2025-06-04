@@ -126,74 +126,24 @@ function generateRandomName() {
 }
 
 function init() {
-    // Make sure all DOM elements are properly found
-    if (!elements.startGameButton) {
-        console.error("Start game button not found in DOM!");
-        // Try to find it directly
-        elements.startGameButton = document.getElementById('start-game');
-    }
-    
-    // Set up event listeners with error handling
-    if (elements.startGameButton) {
-        console.log("Adding click event listener to Start Game button");
-        
-        // Remove any existing event listeners
-        elements.startGameButton.removeEventListener('click', startGame);
-        
-        // Add the event listener
-        elements.startGameButton.addEventListener('click', startGame);
-        
-        // Also add a direct onclick attribute as a fallback
-        elements.startGameButton.onclick = startGame;
-        
-        // Log confirmation
-        console.log("Start Game button event listener added successfully");
-    }
-    
-    if (elements.randomNameButton) {
-        elements.randomNameButton.addEventListener('click', () => {
-            elements.playerNameInput.value = generateRandomName();
-        });
-    }
-    
-    if (elements.chaosLevelInput) {
-        elements.chaosLevelInput.addEventListener('input', updateChaosDisplay);
-    }
-    
-    if (elements.saveGameButton) {
-        elements.saveGameButton.addEventListener('click', saveGame);
-    }
-    
-    if (elements.loadGameButton) {
-        elements.loadGameButton.addEventListener('click', loadGame);
-    }
-    
-    if (elements.endGameButton) {
-        elements.endGameButton.addEventListener('click', endGame);
-    }
-    
-    if (elements.newGameButton) {
-        elements.newGameButton.addEventListener('click', resetGame);
-    }
+    // Set up event listeners
+    elements.startGameButton.addEventListener('click', startGame);
+    elements.randomNameButton.addEventListener('click', () => {
+        elements.playerNameInput.value = generateRandomName();
+    });
+    elements.chaosLevelInput.addEventListener('input', updateChaosDisplay);
+    elements.saveGameButton.addEventListener('click', saveGame);
+    elements.loadGameButton.addEventListener('click', loadGame);
+    elements.endGameButton.addEventListener('click', endGame);
+    elements.newGameButton.addEventListener('click', resetGame);
     
     // LLM mode selection
-    if (elements.llmModeMock) {
-        elements.llmModeMock.addEventListener('change', updateLlmMode);
-    }
-    
-    if (elements.llmModeBrowser) {
-        elements.llmModeBrowser.addEventListener('change', updateLlmMode);
-    }
-    
-    if (elements.llmModeServer) {
-        elements.llmModeServer.addEventListener('change', updateLlmMode);
-    }
+    elements.llmModeMock.addEventListener('change', updateLlmMode);
+    elements.llmModeBrowser.addEventListener('change', updateLlmMode);
+    elements.llmModeServer.addEventListener('change', updateLlmMode);
     
     // Initial chaos level display
     updateChaosDisplay();
-    
-    // Log initialization completion
-    console.log("Game initialization completed successfully");
 }
 
 /**
@@ -220,41 +170,15 @@ function updateLlmMode() {
 }
 
 /**
- * Initialize the browser-based LLM - Enhanced with better error handling
+ * Initialize the browser-based LLM
  */
 async function initBrowserLlm() {
-    // First, extensive check and reporting for transformers.js availability
-    console.log('Browser LLM initialization start - Environment check:',
-        {
-            'window.webllm exists': !!window.webllm,
-            'window.Xenova exists': !!window.Xenova,
-            'typeof window.Xenova': typeof window.Xenova,
-            'window.Xenova properties': window.Xenova ? Object.keys(window.Xenova).join(', ') : 'none'
-        }
-    );
-    
     if (!window.webllm) {
-        console.warn('WebLLM library not available - Missing window.webllm global variable.');
-        
-        // Try to load transformers library directly as a last resort
-        try {
-            console.log("Attempting to directly check/access Transformers via window.Xenova");
-            if (window.Xenova && window.Xenova.transformers) {
-                console.log("Found Transformers.js via direct window.Xenova.transformers access");
-                window.webllm = window.Xenova.transformers;
-            } else if (window.Xenova) {
-                console.log("Found window.Xenova but missing transformers property:", window.Xenova);
-            } else {
-                console.error("Both window.webllm and window.Xenova are unavailable");
-                throw new Error("Transformers.js library completely unavailable");
-            }
-        } catch (directError) {
-            console.error("Direct transformers.js access failed:", directError);
-            alert('WebLLM library not available. Using mock mode instead.');
-            elements.llmModeMock.checked = true;
-            gameState.llmMode = 'mock';
-            return;
-        }
+        console.warn('WebLLM library not available.');
+        alert('WebLLM library not available. Using mock mode instead.');
+        elements.llmModeMock.checked = true;
+        gameState.llmMode = 'mock';
+        return;
     }
     
     try {
@@ -267,62 +191,11 @@ async function initBrowserLlm() {
         
         // Initialize WebLLM with Transformers.js from Hugging Face
         if (!gameState.browserLlm) {
-            console.log("Creating text-generation pipeline for browser LLM");
-            
-            try {
-                // Verify pipeline function exists
-                if (!window.webllm.pipeline) {
-                    console.error("window.webllm exists but pipeline function is missing!");
-                    console.log("Available methods on webllm:", Object.keys(window.webllm).join(", "));
-                    throw new Error("Pipeline function not found in transformers.js");
-                }
-                
-                // Create pipeline for text generation
-                const { pipeline } = window.webllm;
-                console.log("Pipeline function found, attempting to create pipeline");
-                
-                try {
-                    // Log model config for debugging
-                    console.log("Pipeline configuration:", {
-                        task: 'text-generation',
-                        modelId: WEBLLM_CONFIG.modelId,
-                        progress_callback: 'function provided'
-                    });
-                    
-                    // Create the pipeline with timeout
-                    const pipelinePromise = pipeline('text-generation', WEBLLM_CONFIG.modelId, {
-                        progress_callback: WEBLLM_CONFIG.progress_callback
-                    });
-                    
-                    // Create a timeout of 30 seconds
-                    const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error("Pipeline initialization timed out after 30 seconds")), 30000);
-                    });
-                    
-                    // Race between pipeline creation and timeout
-                    gameState.browserLlm = await Promise.race([pipelinePromise, timeoutPromise]);
-                    console.log("Browser LLM pipeline created successfully");
-                } catch (pipelineError) {
-                    console.error("Primary pipeline initialization failed:", pipelineError);
-                    
-                    // Detailed error logging
-                    console.log("Pipeline error details:", {
-                        name: pipelineError.name,
-                        message: pipelineError.message,
-                        stack: pipelineError.stack
-                    });
-                    
-                    // Fallback to mock mode after pipeline failure
-                    console.log("Falling back to mock mode due to pipeline initialization failure");
-                    elements.llmModeMock.checked = true;
-                    gameState.llmMode = 'mock';
-                    alert("Unable to initialize the browser-based LLM. Falling back to mock mode for a better experience.");
-                    throw new Error("Pipeline initialization failed");
-                }
-            } catch (initError) {
-                console.error("LLM initialization error:", initError);
-                throw initError; // Propagate to outer catch
-            }
+            // Create pipeline for text generation
+            const { pipeline } = window.webllm;
+            gameState.browserLlm = await pipeline('text-generation', WEBLLM_CONFIG.modelId, {
+                progress_callback: WEBLLM_CONFIG.progress_callback
+            });
         }
         
         if (elements.llmLoading) {
@@ -331,8 +204,6 @@ async function initBrowserLlm() {
         if (elements.startGameButton) {
             elements.startGameButton.disabled = false;
         }
-        
-        console.log("Browser LLM initialization completed successfully");
     } catch (error) {
         console.error('Error initializing browser LLM:', error);
         alert('Failed to load the LLM model. Using mock mode instead.');
@@ -353,23 +224,9 @@ async function initBrowserLlm() {
  * Generate text using browser-based LLM
  */
 async function generateWithBrowserLlm(prompt, maxTokens = 500) {
-    console.log("Browser LLM generation requested");
-    
-    // Check if browser LLM is initialized - if not, fall back to mock mode
     if (!gameState.browserLlm) {
         console.error('Browser LLM not initialized');
-        
-        // Automatically switch to mock mode for reliability
-        console.log("Switching to mock mode due to uninitialized LLM");
-        if (elements.llmModeMock) {
-            elements.llmModeMock.checked = true;
-        }
-        gameState.llmMode = 'mock';
-        
-        // Return mock response instead
-        const mockResponse = getMockResponse('fallback');
-        console.log(`Using mock response: ${mockResponse.slice(0, 50)}...`);
-        return mockResponse;
+        return getMockResponse('fallback');
     }
     
     // Create a loading indicator for the narrative text area if passed
@@ -420,14 +277,6 @@ async function generateWithBrowserLlm(prompt, maxTokens = 500) {
         loadingIndicator.dotsInterval = dotsInterval;
     }
     
-    // Set a timeout to ensure we don't wait forever
-    let generationTimeout;
-    const timeoutPromise = new Promise((_, reject) => {
-        generationTimeout = setTimeout(() => {
-            reject(new Error("Browser LLM generation timed out after 15 seconds"));
-        }, 15000);
-    });
-    
     try {
         // Log that generation is starting
         console.log(`Generating with Browser LLM: ${prompt.slice(0, 50)}...`);
@@ -440,16 +289,10 @@ async function generateWithBrowserLlm(prompt, maxTokens = 500) {
             repetition_penalty: 1.1
         };
         
-        // Run the model with a timeout
+        // Run the model
         console.time('LLM Generation Time');
-        const result = await Promise.race([
-            gameState.browserLlm(prompt, parameters),
-            timeoutPromise
-        ]);
+        const result = await gameState.browserLlm(prompt, parameters);
         console.timeEnd('LLM Generation Time');
-        
-        // Clear the timeout since generation completed
-        clearTimeout(generationTimeout);
         
         // Extract generated text and clean it up
         let generatedText = result[0].generated_text;
@@ -490,18 +333,6 @@ async function generateWithBrowserLlm(prompt, maxTokens = 500) {
     } catch (error) {
         console.error('Error generating with browser LLM:', error);
         
-        // Clear timeout if it exists
-        if (generationTimeout) {
-            clearTimeout(generationTimeout);
-        }
-        
-        // Switch to mock mode automatically for reliability
-        console.log("Switching to mock mode after LLM generation error");
-        if (elements.llmModeMock) {
-            elements.llmModeMock.checked = true;
-        }
-        gameState.llmMode = 'mock';
-        
         // Clean up loading indicator if it exists
         if (loadingIndicator && loadingIndicator.parentNode) {
             // Clear the animation interval
@@ -513,149 +344,47 @@ async function generateWithBrowserLlm(prompt, maxTokens = 500) {
             loadingIndicator.parentNode.removeChild(loadingIndicator);
         }
         
-        // Get mock response as fallback
-        const mockResponse = getMockResponse('fallback');
-        console.log(`Using mock response after error: ${mockResponse.slice(0, 50)}...`);
-        return mockResponse;
+        return getMockResponse('fallback');
     }
 }
 
 /**
- * Start a new game - Completely revamped for reliability
+ * Start a new game
  */
 async function startGame() {
-    console.log("GAME START: Begin Adventure button clicked");
-    
-    // STEP 1: Get player name and validate
+    // Get player name and validate
     const playerName = elements.playerNameInput.value.trim();
     if (!playerName) {
         alert('Please enter your name to begin the adventure!');
         return;
     }
     
-    // STEP 2: Update game state
+    // Update game state
     gameState.playerName = playerName;
     gameState.chaosLevel = parseInt(elements.chaosLevelInput.value);
     gameState.isGameActive = true;
     
-    // STEP 3: Provide immediate feedback - disable button and show loading state
+    // Disable start button and show loading indicator
     elements.startGameButton.disabled = true;
-    elements.startGameButton.textContent = 'Preparing Adventure...';
-    console.log(`Starting game for player: ${playerName}, chaos level: ${gameState.chaosLevel}`);
+    elements.startGameButton.textContent = 'Loading...';
     
     try {
-        // STEP 4: Different content generation based on mode
         if (gameState.llmMode === 'mock') {
-            // MOCK MODE: Simplest path - reliable text generation
-            console.log("Using mock mode for content generation");
-            
-            // Get mock narrative content
+            // Mock start game response
             const mockIntro = getMockResponse('intro');
             gameState.currentNarrative = mockIntro;
-            
-            // Get mock choices 
-            const mockChoices = getMockChoices();
-            gameState.choices = mockChoices;
-            
-            // IMPORTANT: First, ensure narrative content exists in game state
-            console.log("Setting narrative content in the game state");
-            
-            // STEP 5: Prepare UI BEFORE switching screens
-            // Pre-populate narrative text container with content
             elements.narrativeText.textContent = mockIntro;
             
-            // Ensure narrative container is set to visible with basic styles
-            if (elements.narrativeText.parentElement) {
-                elements.narrativeText.parentElement.style.display = 'block';
-                elements.narrativeText.parentElement.style.visibility = 'visible';
-                elements.narrativeText.parentElement.style.opacity = '1';
-            }
-            
-            // Make sure narrative text itself is visible
-            elements.narrativeText.style.display = 'block';
-            elements.narrativeText.style.visibility = 'visible';
-            elements.narrativeText.style.opacity = '1';
-            
-            // Render the choices to prepare that container too
+            // Get mock choices
+            const mockChoices = getMockChoices();
+            gameState.choices = mockChoices;
             renderChoices(mockChoices);
             
-            // STEP 6: Now that content is ready, trigger screen transition
-            console.log("Mock content ready, showing game screen");
+            // Show game screen
             showScreen('game');
         } 
         else if (gameState.llmMode === 'browser') {
-            // BROWSER LLM MODE: More complex path with async content generation
-            console.log("Using browser LLM mode for content generation");
-            
-            // Check browser LLM initialization status first
-            if (!gameState.browserLlm) {
-                console.warn("Browser LLM not initialized yet - attempting initialization now");
-                
-                try {
-                    // Show special loading state during initialization attempt
-                    elements.startGameButton.disabled = true;
-                    elements.startGameButton.textContent = 'Initializing Browser LLM...';
-                    
-                    // Last attempt to initialize LLM
-                    await initBrowserLlm();
-                    
-                    // Verify initialization worked
-                    if (!gameState.browserLlm) {
-                        throw new Error("Browser LLM could not be initialized");
-                    }
-                    
-                    console.log("Late browser LLM initialization succeeded");
-                } catch (initError) {
-                    console.error("Failed to initialize browser LLM:", initError);
-                    
-                    // Fall back to mock mode on initialization failure
-                    alert("Browser LLM could not be initialized. Falling back to mock mode.");
-                    gameState.llmMode = 'mock';
-                    if (elements.llmModeMock) {
-                        elements.llmModeMock.checked = true;
-                    }
-                    
-                    // Load the game in mock mode instead
-                    const mockIntro = getMockResponse('intro');
-                    gameState.currentNarrative = mockIntro;
-                    elements.narrativeText.textContent = mockIntro;
-                    
-                    // Get mock choices
-                    const mockChoices = getMockChoices();
-                    gameState.choices = mockChoices;
-                    renderChoices(mockChoices);
-                    
-                    // Show game screen and exit this code path
-                    showScreen('game');
-                    return;
-                } finally {
-                    // Restore button state
-                    elements.startGameButton.disabled = false;
-                    elements.startGameButton.textContent = 'Begin Adventure';
-                }
-            }
-            
-            // First, create a loading message to display while LLM generates content
-            elements.narrativeText.innerHTML = '<div style="text-align:center; padding:20px;">' +
-                '<p style="font-style:italic; color:#6a0dad;">Generating your chaotic adventure...</p>' +
-                '<div style="width:40px; height:40px; border:3px solid #f3f3f3; ' + 
-                'border-top:3px solid #6a0dad; border-radius:50%; margin:20px auto; ' +
-                'animation:spin 1s linear infinite;"></div></div>' +
-                '<style>@keyframes spin {0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)}}</style>';
-                
-            // Step 5a: Show game screen with loading state BEFORE content is ready
-            // This provides better UX than a frozen start screen
-            console.log("Showing game screen with loading state");
-            showScreen('game');
-            
-            // Explicitly make sure narrative container is visible during loading
-            if (elements.narrativeText.parentElement) {
-                elements.narrativeText.parentElement.style.display = 'block';
-                elements.narrativeText.parentElement.style.visibility = 'visible';
-                elements.narrativeText.parentElement.style.opacity = '1';
-            }
-            
-            // Generate intro content with browser LLM
+            // Generate intro with browser LLM
             const prompt = `You are creating a chaotic and humorous adventure game introduction. 
             The player's name is ${playerName}. Create an introduction (150-200 words) for a
             whimsical, slightly absurd scenario. Make it first-person narrative and end at a
@@ -663,30 +392,65 @@ async function startGame() {
             
             console.log("Generating intro text with browser LLM");
             const introText = await generateWithBrowserLlm(prompt);
+            gameState.currentNarrative = introText;
+            console.log("Browser LLM returned intro text: " + introText.slice(0, 50) + "...");
             
-            // Check if we got a proper response or if we were switched to mock mode
-            if (gameState.llmMode !== 'browser') {
-                console.log("LLM mode was switched to mock during generation - continuing with mock mode flow");
-                // Note: At this point, generateWithBrowserLlm would have already returned a mock response
-                // and updated the game state, so we can just continue
-                gameState.currentNarrative = introText;
-                
-                // Get mock choices to match our mock narrative
-                const mockChoices = getMockChoices();
-                gameState.choices = mockChoices;
-                
-                // Update UI
-                elements.narrativeText.textContent = introText;
-                renderChoices(mockChoices);
-                
-                // Ensure visibility
-                showScreen('game');
-                return;
+            // Prepare the game screen before showing it
+            // Pre-set the narrative text to ensure it exists when we switch screens
+            console.log("Setting narrative text to: " + introText.slice(0, 50) + "...");
+            
+            // First make sure the game screen is accessible
+            elements.gameScreen.style.display = 'block';
+            elements.gameScreen.style.opacity = '0'; // Invisible but accessible in DOM
+            
+            // Set the narrative text and ensure the container is visible WITH OBVIOUS MARKERS
+            // Clear any existing content
+            elements.narrativeText.innerHTML = '';
+            
+            // Add a visible start marker
+            const startMarker = document.createElement('strong');
+            startMarker.textContent = "[NARRATIVE START] ";
+            startMarker.style.color = 'red';
+            elements.narrativeText.appendChild(startMarker);
+            
+            // Add the actual narrative content
+            const textNode = document.createTextNode(introText);
+            elements.narrativeText.appendChild(textNode);
+            
+            // Add a visible end marker
+            const endMarker = document.createElement('strong');
+            endMarker.textContent = " [NARRATIVE END]";
+            endMarker.style.color = 'red';
+            elements.narrativeText.appendChild(endMarker);
+            
+            // Set critical visibility properties
+            elements.narrativeText.style.display = 'block';
+            elements.narrativeText.style.visibility = 'visible';
+            elements.narrativeText.style.opacity = '1';
+            
+            // Make sure container is visible
+            if (elements.narrativeText.parentElement) {
+                elements.narrativeText.parentElement.style.display = 'block';
+                elements.narrativeText.parentElement.style.visibility = 'visible';
+                elements.narrativeText.parentElement.style.opacity = '1';
             }
             
-            // Normal flow continues if we're still in browser LLM mode
-            gameState.currentNarrative = introText;
-            console.log("Browser LLM returned intro text of length:", introText ? introText.length : 0);
+            // Force a layout recalculation to ensure browser has processed these changes
+            const forceLayout = elements.narrativeText.offsetHeight;
+            
+            // Set text also as direct attribute to maximize compatibility
+            elements.narrativeText.setAttribute('data-content', introText);
+            
+            // Create a direct fixed position backup element that will always be visible
+            const backupElement = document.createElement('div');
+            backupElement.id = 'backup-narrative';
+            backupElement.innerHTML = `<strong style="color:red">BACKUP NARRATIVE:</strong> ${introText}`;
+            backupElement.style.cssText = 'position: fixed; top: 10px; left: 10px; background: white; color: black; z-index: 9999; padding: 5px; border: 2px solid red; max-width: 80%; max-height: 30%; overflow: auto;';
+            document.body.appendChild(backupElement);
+            
+            // Debug info
+            console.log(`Narrative element after update: ${elements.narrativeText.textContent.slice(0, 50)}... Element has children: ${elements.narrativeText.children.length} Element visible: ${elements.narrativeText.offsetParent !== null}`);
+            console.log("Updated UI with narrative text");
             
             // Generate choices with browser LLM
             const choicesPrompt = `Based on this introduction: "${introText}", 
@@ -695,65 +459,115 @@ async function startGame() {
             
             const choicesText = await generateWithBrowserLlm(choicesPrompt, 200);
             
-            // Check again if we were switched to mock mode during choices generation
-            if (gameState.llmMode !== 'browser') {
-                console.log("LLM mode was switched to mock during choices generation");
-                // We'll use the mock choices but keep our real narrative
-                const mockChoices = getMockChoices();
-                gameState.choices = mockChoices;
-                
-                // Update UI
-                elements.narrativeText.textContent = introText;
-                renderChoices(mockChoices);
-                
-                // Ensure visibility
-                showScreen('game');
-                return;
-            }
-            
             // Parse choices from the text
             const choices = parseChoicesFromText(choicesText);
             gameState.choices = choices;
             
-            // STEP 5b: Now that we have content, update the UI directly
-            console.log("Updating game screen with generated content");
+            // Important: Apply direct inline styles with !important before showing the screen
+            elements.narrativeText.setAttribute('style', 
+                'display: block !important; ' +
+                'visibility: visible !important; ' +
+                'opacity: 1 !important; ' +
+                'font-size: 1.1rem !important; ' +
+                'line-height: 1.6 !important;'
+            );
             
-            // Keep it simple - just set textContent 
-            elements.narrativeText.textContent = introText;
-            
-            // Render choices
+            // Now render choices and show the game screen
             renderChoices(choices);
             
-            // Double check visibility - most important part!
-            if (elements.narrativeText.parentElement) {
-                elements.narrativeText.parentElement.style.display = 'block';
-                elements.narrativeText.parentElement.style.visibility = 'visible';
-                elements.narrativeText.parentElement.style.opacity = '1';
-            }
+            // Reset game screen display before showing it properly
+            elements.gameScreen.style.display = '';
+            elements.gameScreen.style.opacity = '';
             
-            elements.narrativeText.style.display = 'block';
-            elements.narrativeText.style.visibility = 'visible';
-            elements.narrativeText.style.opacity = '1';
-            
-            // Force a refresh of the game screen to ensure content is visible
+            // Finally show the game screen
             showScreen('game');
+        }
+        else if (gameState.llmMode === 'openrouter') {
+            try {
+                // Check API availability first
+                const checkResponse = await fetch(`${API.baseUrl}/version`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!checkResponse.ok) {
+                    throw new Error(`API server not available (Status: ${checkResponse.status})`);
+                }
+                
+                if (!gameState.openrouterModel) {
+                    throw new Error('No OpenRouter model selected');
+                }
+                
+                // Start game with OpenRouter
+                const response = await fetch(`${API.baseUrl}${API.startGame}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        playerName: gameState.playerName,
+                        chaosLevel: gameState.chaosLevel,
+                        llmProvider: 'openrouter',
+                        llmModel: gameState.openrouterModel
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('OpenRouter API error:', errorText);
+                    throw new Error(`OpenRouter API error (${response.status}): ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const responseText = await response.text();
+                    console.error('Unexpected response format:', responseText);
+                    throw new Error('Server returned non-JSON response');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.gameId || !data.narrative || !data.choices) {
+                    console.error('Invalid API response structure:', data);
+                    throw new Error('Server returned invalid data structure');
+                }
+                
+                gameState.gameId = data.gameId;
+                gameState.currentNarrative = data.narrative;
+                gameState.choices = data.choices;
+                
+                elements.narrativeText.textContent = data.narrative;
+                renderChoices(data.choices);
+                
+                // Show game screen
+                showScreen('game');
+            } catch (apiError) {
+                console.error('OpenRouter Mode Error:', apiError);
+                alert(`OpenRouter not available: ${apiError.message}\n\nSwitching to Mock mode for now.`);
+                
+                // Switch to mock mode automatically
+                gameState.llmMode = 'mock';
+                elements.llmModeMock.checked = true;
+                
+                // Load the game in mock mode
+                const mockIntro = getMockResponse('intro');
+                gameState.currentNarrative = mockIntro;
+                elements.narrativeText.textContent = mockIntro;
+                
+                // Get mock choices
+                const mockChoices = getMockChoices();
+                gameState.choices = mockChoices;
+                renderChoices(mockChoices);
+                
+                // Show game screen
+                showScreen('game');
+            }
         } 
         else if (gameState.llmMode === 'server') {
             try {
-                // SERVER MODE: API-based content generation
-                console.log("Using server API mode for content generation");
-                
-                // Create loading indicator in narrative area while waiting for API
-                elements.narrativeText.innerHTML = '<div style="text-align:center; padding:20px;">' +
-                    '<p style="font-style:italic; color:#6a0dad;">Contacting server...</p>' +
-                    '<div style="width:40px; height:40px; border:3px solid #f3f3f3; ' + 
-                    'border-top:3px solid #6a0dad; border-radius:50%; margin:20px auto; ' +
-                    'animation:spin 1s linear infinite;"></div></div>' +
-                    '<style>@keyframes spin {0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)}}</style>';
-                
-                // Show game screen with loading state
-                showScreen('game');
-                
                 // Check API availability first
                 const checkResponse = await fetch(`${API.baseUrl}/version`, {
                     method: 'GET',
@@ -800,16 +614,14 @@ async function startGame() {
                     throw new Error('Server returned invalid data structure');
                 }
                 
-                // Store data in game state
                 gameState.gameId = data.gameId;
                 gameState.currentNarrative = data.narrative;
                 gameState.choices = data.choices;
                 
-                // Update UI with received content
                 elements.narrativeText.textContent = data.narrative;
                 renderChoices(data.choices);
                 
-                // Refresh the game screen to ensure content is visible
+                // Show game screen
                 showScreen('game');
             } catch (apiError) {
                 console.error('Server API Mode Error:', apiError);
@@ -833,69 +645,9 @@ async function startGame() {
                 showScreen('game');
             }
         }
-        
-        // STEP 7: Final visibility check with setTimeout for reliability
-        setTimeout(() => {
-            console.log("Final visibility check for game screen");
-            // Verify game screen is visible
-            if (!elements.gameScreen.classList.contains('active') || 
-                window.getComputedStyle(elements.gameScreen).display !== 'block') {
-                console.log("Emergency game screen visibility fix");
-                elements.gameScreen.style.display = 'block';
-                elements.gameScreen.style.visibility = 'visible';
-                elements.gameScreen.style.opacity = '1';
-                elements.gameScreen.classList.add('active');
-                
-                // Verify start screen is hidden
-                elements.startScreen.style.display = 'none';
-                elements.startScreen.classList.remove('active');
-            }
-            
-            // Verify narrative is visible and has content
-            if (elements.narrativeText) {
-                // If narrative text is empty but we have content in game state, restore it
-                if ((!elements.narrativeText.textContent || elements.narrativeText.textContent.trim() === '') && 
-                    gameState.currentNarrative && gameState.currentNarrative.trim() !== '') {
-                    console.log("Emergency narrative content restoration");
-                    elements.narrativeText.textContent = gameState.currentNarrative;
-                }
-                
-                // Make absolutely sure it's visible
-                elements.narrativeText.style.display = 'block';
-                elements.narrativeText.style.visibility = 'visible';
-                elements.narrativeText.style.opacity = '1';
-                
-                // Also make parent container visible
-                if (elements.narrativeText.parentElement) {
-                    elements.narrativeText.parentElement.style.display = 'block';
-                    elements.narrativeText.parentElement.style.visibility = 'visible';
-                    elements.narrativeText.parentElement.style.opacity = '1';
-                }
-            }
-        }, 300);
     } catch (error) {
         console.error('Error starting game:', error);
         alert('Failed to start the game. Please try again.');
-        
-        // Fallback to mock mode for maximum reliability
-        console.log("Falling back to mock mode after error");
-        gameState.llmMode = 'mock';
-        if (elements.llmModeMock) {
-            elements.llmModeMock.checked = true;
-        }
-        
-        // Load the game in mock mode as last resort
-        const mockIntro = getMockResponse('intro');
-        gameState.currentNarrative = mockIntro;
-        elements.narrativeText.textContent = mockIntro;
-        
-        // Get mock choices
-        const mockChoices = getMockChoices();
-        gameState.choices = mockChoices;
-        renderChoices(mockChoices);
-        
-        // Show game screen
-        showScreen('game');
     } finally {
         // Re-enable start button
         elements.startGameButton.disabled = false;
@@ -1125,6 +877,76 @@ async function makeChoice(choiceIndex) {
             const choices = parseChoicesFromText(choicesText);
             gameState.choices = choices;
             renderChoices(choices);
+        }
+        else if (gameState.llmMode === 'openrouter') {
+            try {
+                // OpenRouter choice response
+                const response = await fetch(`${API.baseUrl}${API.makeChoice}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        gameId: gameState.gameId,
+                        choiceIndex: choiceIndex
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('OpenRouter API choice error:', errorText);
+                    throw new Error(`OpenRouter API error (${response.status}): ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const responseText = await response.text();
+                    console.error('Unexpected response format:', responseText);
+                    throw new Error('Server returned non-JSON response');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.narrative || !data.choices) {
+                    console.error('Invalid API response structure:', data);
+                    throw new Error('Server returned invalid data structure');
+                }
+                
+                // Handle game over
+                if (data.narrative.game_over) {
+                    gameState.currentNarrative = data.narrative.text;
+                    elements.narrativeText.textContent = data.narrative.text;
+                    
+                    // Show game over message and summary option
+                    setTimeout(() => {
+                        endGame();
+                    }, 2000);
+                    return;
+                }
+                
+                gameState.currentNarrative = data.narrative.text || data.narrative;
+                gameState.choices = data.choices;
+                
+                elements.narrativeText.textContent = gameState.currentNarrative;
+                renderChoices(data.choices);
+                
+            } catch (apiError) {
+                console.error('OpenRouter choice error:', apiError);
+                
+                // Fallback to mock response
+                const mockResponse = getMockResponse('choice');
+                gameState.currentNarrative = mockResponse;
+                elements.narrativeText.textContent = mockResponse;
+                
+                // Get new mock choices
+                const mockChoices = getMockChoices();
+                gameState.choices = mockChoices;
+                renderChoices(mockChoices);
+                
+                // Notify user but allow continuing with mock data
+                alert(`OpenRouter error: ${apiError.message}\nContinuing with mock responses.`);
+            }
         } 
         else if (gameState.llmMode === 'server') {
             try {
@@ -1197,106 +1019,70 @@ async function makeChoice(choiceIndex) {
 }
 
 /**
- * Render the current choices - Simplified for reliability
+ * Render the current choices
  * @param {Array} choices - The choices to render
  */
 function renderChoices(choices) {
     console.log("Rendering choices:", choices);
     
-    // Safety check for choices - use fallback if needed
-    if (!choices || !Array.isArray(choices) || choices.length === 0) {
-        console.warn("No valid choices provided to renderChoices, using fallback");
-        choices = ["Continue the adventure", "Try something else", "Do something unexpected"];
-    }
-    
-    // Safety check for choices list element
-    if (!elements.choicesList) {
-        console.error("Choices list element not found!");
-        return;
-    }
-    
-    // Clear existing choices with a reliable method
-    while (elements.choicesList.firstChild) {
-        elements.choicesList.removeChild(elements.choicesList.firstChild);
-    }
-    
-    // Make sure choices container is visible
-    elements.choicesList.style.display = 'block';
-    elements.choicesList.style.visibility = 'visible';
-    elements.choicesList.style.opacity = '1';
+    // Clear existing choices
+    elements.choicesList.innerHTML = '';
     
     // Create and add the new choice elements
     choices.forEach((choice, index) => {
-        // Create a new list item
         const li = document.createElement('li');
-        
-        // Safety check for choice text
-        const choiceText = choice || `Option ${index + 1}`;
-        
-        // Set text content directly
-        li.textContent = choiceText;
-        
-        // Apply basic styling directly
-        li.style.margin = '1rem 0';
-        li.style.padding = '1rem';
-        li.style.backgroundColor = 'rgba(142, 68, 173, 0.1)';
-        li.style.borderRadius = '8px';
-        li.style.cursor = 'pointer';
-        li.style.transition = 'all 0.3s ease';
-        
-        // Add hover effects via a class
-        li.classList.add('choice-item');
-        
-        // Use standard click handler
+        li.textContent = choice;
         li.addEventListener('click', () => makeChoice(index));
-        
-        // Add to the choices list
         elements.choicesList.appendChild(li);
     });
     
-    // Ensure choice container is visible with direct styles
-    const choicesContainer = elements.choicesList.parentElement;
-    if (choicesContainer) {
-        choicesContainer.style.display = 'block';
-        choicesContainer.style.visibility = 'visible';
-        choicesContainer.style.opacity = '1';
-    }
-    
-    // Create a simple hover effect style if it doesn't exist
-    if (!document.getElementById('choice-hover-style')) {
-        const style = document.createElement('style');
-        style.id = 'choice-hover-style';
-        style.textContent = `
-            .choice-item:hover {
-                background-color: rgba(142, 68, 173, 0.2) !important;
-                transform: translateX(10px) !important;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    // BONUS RELIABILITY: Ensure narrative text is still properly displayed
-    // This provides a safety check in case rendering choices affects narrative visibility
-    if (elements.narrativeText) {
-        // Make sure narrative text is visible
-        elements.narrativeText.style.display = 'block';
-        elements.narrativeText.style.visibility = 'visible';
-        elements.narrativeText.style.opacity = '1';
+    // CRITICAL: Ensure narrative text is properly displayed
+    // This uses a direct DOM method for maximum reliability
+    const setupNarrativeContainer = () => {
+        console.log("Ensuring narrative visibility in renderChoices");
+        const narrativeText = document.getElementById('narrative-text');
+        const narrativeContainer = document.getElementById('narrative-container');
         
-        // Verify content is still there
-        if ((!elements.narrativeText.textContent || elements.narrativeText.textContent.trim() === '') && 
-            gameState.currentNarrative && gameState.currentNarrative.trim() !== '') {
-            console.log("Narrative text was empty during choice rendering - restoring content");
-            elements.narrativeText.textContent = gameState.currentNarrative;
+        if (!narrativeText || !narrativeContainer) {
+            console.error("Could not find narrative elements!");
+            return;
         }
         
-        // Make the narrative container visible too
-        if (elements.narrativeText.parentElement) {
-            elements.narrativeText.parentElement.style.display = 'block';
-            elements.narrativeText.parentElement.style.visibility = 'visible';
-            elements.narrativeText.parentElement.style.opacity = '1';
+        // Explicitly make sure narrative text has content
+        if ((!narrativeText.textContent || narrativeText.textContent.trim() === '') && gameState.currentNarrative) {
+            console.log("Narrative text was empty! Restoring from gameState");
+            // Insert the content twice - once as textContent and once as innerHTML for maximum compatibility
+            narrativeText.textContent = gameState.currentNarrative;
+            narrativeText.innerHTML = gameState.currentNarrative;
+            
+            // Create a bold marker text to make sure the text is visible
+            const marker = document.createElement('strong');
+            marker.textContent = "[START OF NARRATIVE] ";
+            narrativeText.insertBefore(marker, narrativeText.firstChild);
+            
+            // Append another marker at the end
+            const endMarker = document.createElement('strong');
+            endMarker.textContent = " [END OF NARRATIVE]";
+            narrativeText.appendChild(endMarker);
+        } else {
+            console.log("Current narrative content:", narrativeText.textContent || "EMPTY");
         }
-    }
+        
+        // Force all visibility properties 
+        const cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important;';
+        narrativeContainer.style.cssText += cssText;
+        narrativeText.style.cssText += cssText;
+        
+        // Force layout recalculation 
+        narrativeContainer.offsetHeight;
+        narrativeText.offsetHeight;
+        
+        console.log("Narrative content after fixes:", narrativeText.textContent.slice(0, 50));
+    };
+    
+    // Apply fixes immediately and after a short delay for reliability
+    setupNarrativeContainer();
+    setTimeout(setupNarrativeContainer, 50);
 }
 
 /**
@@ -1441,6 +1227,54 @@ async function endGame() {
             const summary = await generateWithBrowserLlm(prompt, 500);
             elements.summaryText.textContent = summary;
             showScreen('summary');
+        }
+        else if (gameState.llmMode === 'openrouter') {
+            try {
+                // OpenRouter summary
+                const response = await fetch(`${API.baseUrl}${API.getSummary}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        gameId: gameState.gameId
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('OpenRouter API summary error:', errorText);
+                    throw new Error(`OpenRouter API error (${response.status}): ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const responseText = await response.text();
+                    console.error('Unexpected response format:', responseText);
+                    throw new Error('Server returned non-JSON response');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.summary) {
+                    console.error('Invalid API response structure:', data);
+                    throw new Error('Server returned invalid data structure');
+                }
+                
+                elements.summaryText.textContent = data.summary;
+                showScreen('summary');
+            } catch (apiError) {
+                console.error('OpenRouter summary error:', apiError);
+                
+                // Fallback to mock summary
+                const mockSummary = getMockResponse('summary');
+                elements.summaryText.textContent = mockSummary;
+                showScreen('summary');
+                
+                // Notify user but continue with mock data
+                alert(`OpenRouter error: ${apiError.message}\nUsing a mock summary instead.`);
+            }
         } 
         else if (gameState.llmMode === 'server') {
             try {
@@ -1522,139 +1356,78 @@ function resetGame() {
 }
 
 /**
- * Show a specific screen - Completely redesigned for reliability
- * @param {string} screenName - The name of the screen to show ('start', 'game', or 'summary')
+ * Show a specific screen
+ * @param {string} screenName - The name of the screen to show
  */
 function showScreen(screenName) {
-    console.log(`SCREEN TRANSITION: Changing to ${screenName} screen`);
+    console.log(`Changing screen to: ${screenName}`);
     
-    // STEP 1: Prepare all screens before transition
-    // We'll first set display:none on ALL screens via direct style (not classes)
-    // This ensures a clean slate regardless of CSS loading issues
-    elements.startScreen.style.display = 'none';
-    elements.gameScreen.style.display = 'none';
-    elements.summaryScreen.style.display = 'none';
+    // First ensure game screen elements are properly initialized
+    if (screenName === 'game') {
+        const narrativeText = elements.narrativeText;
+        const narrativeContainer = elements.narrativeText.parentElement;
+        
+        // Force full visibility of narrative elements before changing screens
+        if (narrativeContainer) {
+            narrativeContainer.style.display = 'block';
+            narrativeContainer.style.visibility = 'visible';
+            narrativeContainer.style.opacity = '1';
+        }
+        
+        narrativeText.style.display = 'block';
+        narrativeText.style.visibility = 'visible';
+        narrativeText.style.opacity = '1';
+        
+        console.log(`Before screen change - narrative content: ${narrativeText.textContent.slice(0, 20)}...`);
+        console.log(`Narrative element visibility: display=${window.getComputedStyle(narrativeText).display}, visibility=${window.getComputedStyle(narrativeText).visibility}, opacity=${window.getComputedStyle(narrativeText).opacity}`);
+    }
     
-    // STEP 2: Remove all active classes (belt and suspenders approach)
+    // Hide all screens
     elements.startScreen.classList.remove('active');
     elements.gameScreen.classList.remove('active');
     elements.summaryScreen.classList.remove('active');
     
-    // STEP 3: Special preparation for game screen BEFORE showing it
-    if (screenName === 'game') {
-        // Ensure the narrative exists and has content before showing
-        const narrativeText = elements.narrativeText;
-        const narrativeContainer = narrativeText ? narrativeText.parentElement : null;
-        
-        // Check if we need to restore the narrative text from gameState
-        if (narrativeText && (!narrativeText.textContent || narrativeText.textContent.trim() === '') && 
-            gameState.currentNarrative && gameState.currentNarrative.trim() !== '') {
-            console.log("Restoring narrative content from gameState");
-            narrativeText.innerHTML = gameState.currentNarrative;
-        }
-        
-        // Direct style application - no transitions, no !important, just direct DOM manipulation
-        if (narrativeContainer) {
-            // First remove any existing styles to prevent conflicts
-            narrativeContainer.removeAttribute('style');
-            // Then apply clean styles
-            narrativeContainer.style.display = 'block';
-            narrativeContainer.style.visibility = 'visible';
-            narrativeContainer.style.opacity = '1';
-            narrativeContainer.style.backgroundColor = 'rgba(106, 13, 173, 0.05)';
-            narrativeContainer.style.padding = '1.5rem';
-            narrativeContainer.style.borderRadius = '8px';
-            narrativeContainer.style.marginBottom = '1.5rem';
-            narrativeContainer.style.borderLeft = '4px solid #6a0dad';
-        }
-        
-        if (narrativeText) {
-            // First remove any existing styles to prevent conflicts
-            narrativeText.removeAttribute('style');
-            // Then apply clean styles
-            narrativeText.style.display = 'block';
-            narrativeText.style.visibility = 'visible';
-            narrativeText.style.opacity = '1';
-            narrativeText.style.fontSize = '1.1rem';
-            narrativeText.style.lineHeight = '1.6';
-        }
-        
-        // Apply these basic styles to choices container too
-        if (elements.choicesList) {
-            elements.choicesList.style.display = 'block';
-            elements.choicesList.style.visibility = 'visible';
-            elements.choicesList.style.opacity = '1';
-        }
-        
-        console.log("Game screen elements prepared with direct styles");
-    }
-    
-    // STEP 4: Show the target screen with direct styles first (immediate, guaranteed visibility)
-    let targetScreen = null;
+    // Show the requested screen
     switch (screenName) {
         case 'start':
-            targetScreen = elements.startScreen;
+            elements.startScreen.classList.add('active');
             break;
         case 'game':
-            targetScreen = elements.gameScreen;
+            // Add the active class and force a reflow to ensure CSS applies
+            elements.gameScreen.classList.add('active');
+            const forceReflow = elements.gameScreen.offsetHeight;
+            
+            // Wait for next frame to ensure CSS transitions complete
+            window.setTimeout(() => {
+                // Force narrative container to be visible again after transition
+                const narrativeText = elements.narrativeText;
+                const narrativeContainer = narrativeText.parentElement;
+                
+                if (narrativeContainer) {
+                    narrativeContainer.style.display = 'block';
+                    narrativeContainer.style.visibility = 'visible';
+                    narrativeContainer.style.opacity = '1';
+                }
+                
+                narrativeText.style.display = 'block';
+                narrativeText.style.visibility = 'visible';
+                narrativeText.style.opacity = '1';
+                
+                // Add direct inline CSS to ensure text is visible
+                narrativeText.setAttribute('style', 'display: block !important; visibility: visible !important; opacity: 1 !important;');
+                
+                console.log(`After screen change - narrative element: ${narrativeText.outerHTML.slice(0, 100)}...`);
+                console.log(`Computed style: ${JSON.stringify({
+                    display: window.getComputedStyle(narrativeText).display,
+                    visibility: window.getComputedStyle(narrativeText).visibility,
+                    opacity: window.getComputedStyle(narrativeText).opacity
+                })}`);
+            }, 50);
             break;
         case 'summary':
-            targetScreen = elements.summaryScreen;
+            elements.summaryScreen.classList.add('active');
             break;
-        default:
-            console.error(`Unknown screen name: ${screenName}`);
-            return; // Exit if invalid screen
     }
-    
-    // Apply direct styles to ensure immediate visibility
-    if (targetScreen) {
-        // Direct style manipulation first
-        targetScreen.style.display = 'block';
-        targetScreen.style.visibility = 'visible';
-        targetScreen.style.opacity = '1';
-        
-        // Force a reflow before adding class
-        const forceReflow = targetScreen.offsetHeight;
-        
-        // Then add the class for any additional styling
-        targetScreen.classList.add('active');
-        
-        console.log(`Screen ${screenName} is now visible`);
-    }
-    
-    // STEP 5: Verification - double check visibility with setTimeout 
-    setTimeout(() => {
-        // Verify that the screen is still visible
-        if (targetScreen && (targetScreen.style.display !== 'block' || 
-            !targetScreen.classList.contains('active'))) {
-            console.log("Emergency visibility fix applied");
-            targetScreen.style.display = 'block';
-            targetScreen.style.visibility = 'visible';
-            targetScreen.style.opacity = '1';
-            targetScreen.classList.add('active');
-        }
-        
-        // For game screen, also verify narrative visibility again
-        if (screenName === 'game') {
-            const narrativeText = elements.narrativeText;
-            const narrativeContainer = narrativeText ? narrativeText.parentElement : null;
-            
-            // If narrative still not visible, try more aggressive approach
-            if (narrativeContainer && window.getComputedStyle(narrativeContainer).display !== 'block') {
-                narrativeContainer.style.cssText = 'display:block !important; visibility:visible !important; opacity:1 !important;';
-            }
-            
-            if (narrativeText && window.getComputedStyle(narrativeText).display !== 'block') {
-                narrativeText.style.cssText = 'display:block !important; visibility:visible !important; opacity:1 !important;';
-            }
-            
-            // Verify content is still there
-            if (narrativeText && (!narrativeText.textContent || narrativeText.textContent.trim() === '') && 
-                gameState.currentNarrative && gameState.currentNarrative.trim() !== '') {
-                narrativeText.innerHTML = gameState.currentNarrative;
-            }
-        }
-    }, 100);
 }
 
 /**
@@ -1675,7 +1448,7 @@ function getMockResponse(type) {
         
         case 'summary':
             return `In what can only be described as the most peculiar Tuesday afternoon of ${gameState.playerName}'s life, they journeyed through the Whimsical Woods, befriended sentient mushrooms, received financial advice from rubber ducks, and somehow ended up with maple syrup in their hair. The local wildlife rated their adventure ${gameState.chaosLevel}/5 stars, "Would watch this human get confused again."`;
-        
+            
         case 'game_over':
             return `Oh no! ${gameState.playerName}'s adventure came to an unexpected end! After bravely venturing through the Whimsical Woods and encountering dancing mushrooms, our protagonist made the fateful decision to challenge the tea party guests to a riddle contest. Unfortunately, the creatures took this as a grave insult to their intelligence and promptly turned ${gameState.playerName} into a teapot. (Chaos level: ${gameState.chaosLevel}/10)\n\nTheir brief career as a tea-serving vessel was reportedly "quite steamy" before the spell wore off three days later. Better luck next time! Remember: in chaotic adventures, sometimes the absurd choices are the safest ones.`;
         
@@ -1715,445 +1488,146 @@ function getMockChoices() {
     return choiceSets[Math.floor(Math.random() * choiceSets.length)];
 }
 
-// Complete game initialization rewritten for maximum reliability
-// This method uses multiple approaches to guarantee initialization
-(function() {
-    // IMMEDIATE SELF-EXECUTING CODE: Runs as soon as the script loads
-    console.log("INITIALIZATION: Script-level initialization running");
+// Initialize the game when the DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    init();
     
-    // Create global initialization function
-    window.initializeChaosGame = function() {
-        console.log("INITIALIZATION: Direct initializeChaosGame function called");
+    // Create a direct debug display that's always visible regardless of game state
+    const createDebugDisplay = () => {
+        // Create a completely new container with text and buttons for direct user testing
+        const debugContainer = document.createElement('div');
+        debugContainer.id = 'direct-debug-container';
+        debugContainer.style.cssText = 
+            'position: fixed; top: 20px; right: 20px; ' + 
+            'background: white; color: black; ' +
+            'z-index: 99999; padding: 15px; ' + 
+            'border: 3px solid red; ' +
+            'max-width: 400px; box-shadow: 0 0 20px rgba(0,0,0,0.5);';
         
-        // PHASE 1: Ensure elements object has all required references
-        // This function makes sure that all UI element references are valid
-        function ensureElementReferences() {
-            console.log("Ensuring all element references are valid");
-            
-            // First save any existing valid references
-            const workingElements = {};
-            if (window.elements) {
-                Object.keys(window.elements).forEach(key => {
-                    if (window.elements[key] && window.elements[key] instanceof Element) {
-                        workingElements[key] = window.elements[key];
-                    }
-                });
-            }
-            
-            // Create fresh elements object with direct getElementById calls
-            window.elements = {
-                // Screens
-                startScreen: document.getElementById('start-screen') || workingElements.startScreen,
-                gameScreen: document.getElementById('game-screen') || workingElements.gameScreen,
-                summaryScreen: document.getElementById('summary-screen') || workingElements.summaryScreen,
-                
-                // Start screen elements
-                playerNameInput: document.getElementById('player-name') || workingElements.playerNameInput,
-                randomNameButton: document.getElementById('random-name') || workingElements.randomNameButton,
-                chaosLevelInput: document.getElementById('chaos-level') || workingElements.chaosLevelInput,
-                chaosValueDisplay: document.getElementById('chaos-value') || workingElements.chaosValueDisplay,
-                startGameButton: document.getElementById('start-game') || workingElements.startGameButton,
-                llmModeMock: document.getElementById('llm-mode-mock') || workingElements.llmModeMock,
-                llmModeBrowser: document.getElementById('llm-mode-browser') || workingElements.llmModeBrowser,
-                llmModeServer: document.getElementById('llm-mode-server') || workingElements.llmModeServer,
-                llmLoading: document.getElementById('llm-loading') || workingElements.llmLoading,
-                loadProgress: document.getElementById('load-progress') || workingElements.loadProgress,
-                progressFill: document.querySelector('.progress-fill') || workingElements.progressFill,
-                
-                // Game screen elements
-                narrativeText: document.getElementById('narrative-text') || workingElements.narrativeText,
-                choicesList: document.getElementById('choices-list') || workingElements.choicesList,
-                saveGameButton: document.getElementById('save-game') || workingElements.saveGameButton,
-                loadGameButton: document.getElementById('load-game') || workingElements.loadGameButton,
-                endGameButton: document.getElementById('end-game') || workingElements.endGameButton,
-                
-                // Summary screen elements
-                summaryText: document.getElementById('summary-text') || workingElements.summaryText,
-                newGameButton: document.getElementById('new-game') || workingElements.newGameButton
-            };
-            
-            // Log a summary of which elements were found
-            console.log("Element references refreshed:", 
-                Object.keys(window.elements).map(key => 
-                    `${key}: ${window.elements[key] ? '✓' : '✗'}`
-                ).join(', ')
-            );
-            
-            return window.elements;
-        }
+        // Add header
+        const header = document.createElement('h3');
+        header.textContent = 'DEBUG CONSOLE v1.0.10-DEBUG';
+        header.style.color = 'red';
+        header.style.marginTop = '0';
+        debugContainer.appendChild(header);
         
-        // PHASE 2: Set up all event handlers
-        // This function sets up all event handlers for the game
-        function setupEventHandlers() {
-            console.log("Setting up all event handlers");
-            
-            // Start screen event handlers
-            if (elements.startGameButton) {
-                // Clean start: Remove any existing handlers first
-                const button = elements.startGameButton;
-                const newButton = button.cloneNode(true);
-                if (button.parentNode) {
-                    button.parentNode.replaceChild(newButton, button);
-                }
-                elements.startGameButton = newButton;
-                
-                // Add multiple redundant event handlers
-                elements.startGameButton.addEventListener('click', startGame);
-                elements.startGameButton.onclick = startGame;
-                elements.startGameButton.setAttribute('onclick', 'startGame()');
-                console.log("Start Game button event handlers set up");
-            }
-            
-            // Setup random name button
-            if (elements.randomNameButton) {
-                elements.randomNameButton.addEventListener('click', () => {
-                    if (elements.playerNameInput) {
-                        elements.playerNameInput.value = generateRandomName();
-                    }
-                });
-            }
-            
-            // Setup chaos level input
-            if (elements.chaosLevelInput) {
-                elements.chaosLevelInput.addEventListener('input', updateChaosDisplay);
-                updateChaosDisplay(); // Set initial display
-            }
-            
-            // Game screen event handlers
-            if (elements.saveGameButton) {
-                elements.saveGameButton.addEventListener('click', saveGame);
-            }
-            
-            if (elements.loadGameButton) {
-                elements.loadGameButton.addEventListener('click', loadGame);
-            }
-            
-            if (elements.endGameButton) {
-                elements.endGameButton.addEventListener('click', endGame);
-            }
-            
-            // Summary screen event handlers
-            if (elements.newGameButton) {
-                elements.newGameButton.addEventListener('click', resetGame);
-            }
-            
-            // LLM mode selection handlers
-            [
-                { element: elements.llmModeMock, mode: 'mock' },
-                { element: elements.llmModeBrowser, mode: 'browser' },
-                { element: elements.llmModeServer, mode: 'server' }
-            ].forEach(item => {
-                if (item.element) {
-                    item.element.addEventListener('change', () => {
-                        if (item.element.checked) {
-                            gameState.llmMode = item.mode;
-                            if (item.mode === 'browser') {
-                                initBrowserLlm();
-                            } else if (elements.llmLoading) {
-                                elements.llmLoading.classList.add('hidden');
-                            }
-                        }
-                    });
-                }
-            });
-            
-            console.log("All event handlers set up successfully");
-        }
+        // Add explanatory text
+        const info = document.createElement('p');
+        info.textContent = 'If you can see this but not the narrative text, use this debug panel:';
+        debugContainer.appendChild(info);
         
-        // PHASE 3: Create debug panel for emergency diagnostics & fixes
-        function createDebugPanel() {
-            // Remove any existing debug panel
-            const existingPanel = document.getElementById('direct-debug-container');
-            if (existingPanel) {
-                existingPanel.parentNode.removeChild(existingPanel);
+        // Add a test button to insert debug text directly
+        const insertButton = document.createElement('button');
+        insertButton.textContent = 'INSERT TEST NARRATIVE';
+        insertButton.style.cssText = 'padding: 8px; margin: 5px; background: #6a0dad; color: white; cursor: pointer;';
+        insertButton.onclick = function() {
+            const narrativeElement = document.getElementById('narrative-text');
+            if (narrativeElement) {
+                narrativeElement.innerHTML = '<strong style="color:red">TEST NARRATIVE INSERTED DIRECTLY VIA DEBUG PANEL:</strong><br><br>' +
+                    'Welcome adventurer! This is a test narrative inserted directly by the debug panel. ' +
+                    'If you can see this text, it means direct DOM manipulation works, but the LLM narrative ' +
+                    'is not being displayed correctly.';
+                
+                // Force visibility on all parent elements
+                let element = narrativeElement;
+                while (element) {
+                    element.style.display = 'block';
+                    element.style.visibility = 'visible';
+                    element.style.opacity = '1';
+                    element = element.parentElement;
+                }
+                
+                alert('Test narrative inserted! Check if you can see it in the game area.');
+            } else {
+                alert('Error: Could not find narrative-text element!');
             }
-            
-            // Create debug container
-            const debugContainer = document.createElement('div');
-            debugContainer.id = 'direct-debug-container';
-            debugContainer.style.cssText = 
-                'position: fixed; top: 20px; right: 20px; ' + 
-                'background: white; color: black; ' +
-                'z-index: 99999; padding: 15px; ' + 
-                'border: 3px solid red; ' +
-                'max-width: 400px; box-shadow: 0 0 20px rgba(0,0,0,0.5);';
-            
-            // Version header
-            const header = document.createElement('h3');
-            header.textContent = 'DEBUG CONSOLE v1.3.2-RESCUE';
-            header.style.color = 'red';
-            header.style.marginTop = '0';
-            debugContainer.appendChild(header);
-            
-            // Create button function
-            const addButton = (text, style, onClick) => {
-                const button = document.createElement('button');
-                button.textContent = text;
-                button.style.cssText = `padding: 8px; margin: 5px; ${style}; cursor: pointer;`;
-                button.onclick = onClick;
-                debugContainer.appendChild(button);
-                return button;
-            };
-            
-            // Emergency Mode button
-            addButton('☢️ EMERGENCY GAME MODE', 'background: red; color: white; font-weight: bold;', function() {
-                // This is a last-resort function that bypasses all regular code
-                // and directly manipulates the DOM to make the game work
-                
-                // 1. Hide all screens and show game screen
-                document.querySelectorAll('.game-screen').forEach(screen => {
-                    screen.style.display = 'none';
-                    screen.classList.remove('active');
-                });
-                
-                const gameScreen = document.getElementById('game-screen');
-                if (gameScreen) {
-                    gameScreen.style.display = 'block';
-                    gameScreen.style.visibility = 'visible';
-                    gameScreen.style.opacity = '1';
-                    gameScreen.classList.add('active');
-                }
-                
-                // 2. Create emergency narrative and choices
-                const narrativeText = document.getElementById('narrative-text');
-                const narrativeContainer = document.getElementById('narrative-container');
-                const playerName = document.getElementById('player-name')?.value || 'Adventurer';
-                
-                if (narrativeContainer) {
-                    narrativeContainer.style.cssText = 'display:block !important; visibility:visible !important; background-color:rgba(106,13,173,0.05); padding:1.5rem; border-radius:8px; margin-bottom:1.5rem; border-left:4px solid #6a0dad;';
-                }
-                
-                if (narrativeText) {
-                    narrativeText.innerHTML = `
-                        <strong style="color:red">[EMERGENCY MODE ACTIVATED]</strong><br><br>
-                        Welcome, ${playerName}, to the Whimsical Woods, a place where logic takes a backseat and chaos reigns supreme! 
-                        As you step into the forest, the trees seem to whisper your name, occasionally mispronouncing it in increasingly 
-                        ridiculous ways. The path ahead splits in three directions, and you notice a squirrel wearing tiny spectacles 
-                        studying a miniature map nearby.
-                    `;
-                    narrativeText.style.cssText = 'display:block !important; visibility:visible !important; font-size:1.1rem; line-height:1.6;';
-                }
-                
-                // 3. Set up emergency choices
-                const choicesList = document.getElementById('choices-list');
-                if (choicesList) {
-                    choicesList.innerHTML = '';
-                    
-                    const choices = [
-                        "Follow the glowing mushrooms deeper into the woods",
-                        "Climb the nearest tree to get a better view",
-                        "Strike up a conversation with the bespectacled squirrel"
-                    ];
-                    
-                    choices.forEach((choice, index) => {
-                        const li = document.createElement('li');
-                        li.textContent = choice;
-                        li.style.cssText = 'margin:1rem 0; padding:1rem; background-color:rgba(142,68,173,0.1); border-radius:8px; cursor:pointer;';
-                        li.onclick = function() {
-                            alert(`You chose: ${choice}\n\nThis is emergency mode, so the game cannot progress further. The UI is working though!`);
-                        };
-                        choicesList.appendChild(li);
-                    });
-                }
-                
-                alert('Emergency Game Mode activated! The game screen should now be visible with basic content.');
-            });
-            
-            // Test narrative button
-            addButton('TEST NARRATIVE', 'background: #6a0dad; color: white;', function() {
-                const narrativeEl = document.getElementById('narrative-text');
-                if (narrativeEl) {
-                    narrativeEl.innerHTML = '<strong style="color:red">TEST NARRATIVE:</strong><br><br>' +
-                        'This is a test narrative inserted by the debug panel. ' +
-                        'If you can see this text, direct DOM manipulation works.';
-                    
-                    // Force visibility
-                    narrativeEl.style.display = 'block';
-                    narrativeEl.style.visibility = 'visible';
-                    narrativeEl.style.opacity = '1';
-                    
-                    if (narrativeEl.parentElement) {
-                        narrativeEl.parentElement.style.display = 'block';
-                        narrativeEl.parentElement.style.visibility = 'visible';
-                        narrativeEl.parentElement.style.opacity = '1';
-                    }
-                    
-                    alert('Test narrative inserted - check game screen.');
-                } else {
-                    alert('Error: Could not find narrative-text element!');
-                }
-            });
-            
-            // Check DOM button
-            addButton('INSPECT DOM STATE', 'background: #333; color: white;', function() {
-                const narrativeEl = document.getElementById('narrative-text');
-                const gameScreen = document.getElementById('game-screen');
-                
-                // Build status report
-                let status = 'DOM STATUS REPORT:\n\n';
-                
-                if (narrativeEl) {
-                    status += `Narrative Element: FOUND\n` +
-                        `Content: ${narrativeEl.textContent ? 'YES (' + narrativeEl.textContent.length + ' chars)' : 'EMPTY'}\n` +
-                        `Display: ${window.getComputedStyle(narrativeEl).display}\n` +
-                        `Visibility: ${window.getComputedStyle(narrativeEl).visibility}\n` +
-                        `Opacity: ${window.getComputedStyle(narrativeEl).opacity}\n\n`;
-                } else {
-                    status += 'Narrative Element: NOT FOUND\n\n';
-                }
-                
-                if (gameScreen) {
-                    status += `Game Screen: FOUND\n` +
-                        `Active Class: ${gameScreen.classList.contains('active') ? 'YES' : 'NO'}\n` +
-                        `Display: ${window.getComputedStyle(gameScreen).display}\n` +
-                        `Visibility: ${window.getComputedStyle(gameScreen).visibility}\n` +
-                        `Opacity: ${window.getComputedStyle(gameScreen).opacity}\n\n`;
-                } else {
-                    status += 'Game Screen: NOT FOUND\n\n';
-                }
-                
-                status += `Elements object has: ${window.elements ? Object.keys(window.elements).length : 0} references\n`;
-                status += `gameState object has: ${window.gameState ? Object.keys(window.gameState).length : 0} properties\n`;
-                status += `Event handlers active: ${typeof window.startGame === 'function' ? 'YES' : 'NO'}\n`;
-                
-                alert(status);
-            });
-            
-            // Add info about current script version
-            const versionInfo = document.createElement('div');
-            versionInfo.style.marginTop = '10px';
-            versionInfo.style.fontSize = '12px';
-            versionInfo.style.color = '#666';
-            versionInfo.innerHTML = `<strong>Version:</strong> v1.3.1<br>` +
-                `<strong>Init Time:</strong> ${new Date().toLocaleTimeString()}<br>` +
-                `<strong>Mode:</strong> Comprehensive Overhaul`;
-            debugContainer.appendChild(versionInfo);
-            
-            // Add close button
-            addButton('CLOSE', 'background: #f44336; color: white;', function() {
-                debugContainer.style.display = 'none';
-            });
-            
-            // Add to document
-            document.body.appendChild(debugContainer);
-            
-            console.log("Debug panel created");
-        }
+        };
+        debugContainer.appendChild(insertButton);
         
-        // PHASE 4: Apply direct styles to ensure narrative visibility
-        function applyDirectStyles() {
-            console.log("Applying direct styles to critical elements");
-            
-            const narrativeContainer = document.getElementById('narrative-container');
-            const narrativeText = document.getElementById('narrative-text');
-            
-            if (narrativeContainer) {
-                narrativeContainer.style.backgroundColor = 'rgba(106, 13, 173, 0.05)';
-                narrativeContainer.style.padding = '1.5rem';
-                narrativeContainer.style.borderRadius = '8px';
-                narrativeContainer.style.marginBottom = '1.5rem';
-                narrativeContainer.style.borderLeft = '4px solid #6a0dad';
-                narrativeContainer.style.display = 'block';
-                narrativeContainer.style.visibility = 'visible';
-                narrativeContainer.style.opacity = '1';
+        // Add a button to check narrative content
+        const checkButton = document.createElement('button');
+        checkButton.textContent = 'CHECK NARRATIVE CONTENT';
+        checkButton.style.cssText = 'padding: 8px; margin: 5px; background: #333; color: white; cursor: pointer;';
+        checkButton.onclick = function() {
+            const narrativeElement = document.getElementById('narrative-text');
+            if (narrativeElement) {
+                alert('Current narrative content: ' + 
+                    (narrativeElement.textContent || 'EMPTY') + 
+                    '\nChildren: ' + narrativeElement.children.length +
+                    '\nStyles: ' + 
+                    '\nDisplay: ' + window.getComputedStyle(narrativeElement).display +
+                    '\nVisibility: ' + window.getComputedStyle(narrativeElement).visibility +
+                    '\nOpacity: ' + window.getComputedStyle(narrativeElement).opacity);
+            } else {
+                alert('Error: Could not find narrative-text element!');
             }
-            
-            if (narrativeText) {
-                narrativeText.style.fontSize = '1.1rem';
-                narrativeText.style.lineHeight = '1.6';
-                narrativeText.style.display = 'block';
-                narrativeText.style.visibility = 'visible';
-                narrativeText.style.opacity = '1';
-                
-                // Add version marker
-                if (!narrativeText.querySelector('#version-marker')) {
-                    const marker = document.createElement('span');
-                    marker.id = 'version-marker';
-                    marker.style.display = 'none';
-                    marker.textContent = 'v1.3.1-enhanced';
-                    narrativeText.appendChild(marker);
-                }
-            }
-            
-            // Make sure the initial screen is visible
-            if (elements.startScreen) {
-                elements.startScreen.style.display = 'block';
-                elements.startScreen.style.visibility = 'visible';
-                elements.startScreen.style.opacity = '1';
-                elements.startScreen.classList.add('active');
-            }
-            
-            // Make sure other screens are hidden
-            [elements.gameScreen, elements.summaryScreen].forEach(screen => {
-                if (screen) {
-                    screen.style.display = 'none';
-                    screen.classList.remove('active');
-                }
-            });
-            
-            console.log("Direct styles applied to critical elements");
-        }
+        };
+        debugContainer.appendChild(checkButton);
         
-        // Execute all initialization phases
-        ensureElementReferences();
-        setupEventHandlers();
-        createDebugPanel();
-        applyDirectStyles();
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.textContent = 'CLOSE DEBUG PANEL';
+        closeButton.style.cssText = 'padding: 8px; margin: 5px; background: #f44336; color: white; cursor: pointer;';
+        closeButton.onclick = function() {
+            debugContainer.style.display = 'none';
+        };
+        debugContainer.appendChild(closeButton);
         
-        // Execute standard init if it exists
-        if (typeof init === 'function') {
-            try {
-                init();
-                console.log("Standard init() function executed successfully");
-            } catch (err) {
-                console.error("Error in standard init() function:", err);
-            }
-        }
-        
-        console.log("Game initialization completed successfully");
-        return true; // Indicate successful initialization
+        // Add to document
+        document.body.appendChild(debugContainer);
     };
     
-    // Multiple initialization triggers for maximum reliability
+    // Create the debug display
+    createDebugDisplay();
     
-    // 1. DOM Content Loaded event
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log("DOMContentLoaded event fired");
-        window.initializeChaosGame();
-    });
-    
-    // 2. Window load event (backup)
-    window.addEventListener('load', function() {
-        console.log("Window load event fired");
-        // Only re-initialize if main init hasn't run or failed
-        if (!window.chaosGameInitialized) {
-            window.initializeChaosGame();
+    // Apply hardcoded styles to the narrative container and text elements
+    const forceBasicStyles = () => {
+        // Get elements again to ensure they're available
+        const narrativeContainer = document.getElementById('narrative-container');
+        const narrativeText = document.getElementById('narrative-text');
+        
+        // Apply important styles to the container
+        if (narrativeContainer) {
+            narrativeContainer.setAttribute('style', 
+                'background-color: rgba(106, 13, 173, 0.05); ' +
+                'padding: 1.5rem; ' +
+                'border-radius: 8px; ' +
+                'margin-bottom: 1.5rem; ' +
+                'border-left: 4px solid #6a0dad; ' +
+                'display: block !important; ' +
+                'visibility: visible !important; ' +
+                'opacity: 1 !important;'
+            );
         }
-    });
-    
-    // 3. Immediate initialization attempt if DOM is already ready
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        console.log("Document already ready, initializing immediately");
-        setTimeout(window.initializeChaosGame, 0);
-    }
-    
-    // 4. Delayed initialization as last resort
-    setTimeout(function() {
-        console.log("Delayed initialization check running");
-        // Only re-initialize if specific elements are missing
-        if (!document.getElementById('direct-debug-container') || 
-            (window.elements && window.elements.startGameButton && 
-             (!window.elements.startGameButton.onclick || !window.elements.startGameButton.onclick.toString().includes('startGame')))) {
-            console.log("Delayed initialization triggered - critical elements not set up properly");
-            window.initializeChaosGame();
-        } else {
-            console.log("Delayed initialization check - no action needed");
+        
+        // Apply important styles to the text element
+        if (narrativeText) {
+            narrativeText.setAttribute('style',
+                'font-size: 1.1rem; ' +
+                'line-height: 1.6; ' +
+                'display: block !important; ' +
+                'visibility: visible !important; ' +
+                'opacity: 1 !important;'
+            );
+            
+            // Insert a permanent test marker to make sure the element works
+            if (!narrativeText.querySelector('#permanent-debug-marker')) {
+                const marker = document.createElement('div');
+                marker.id = 'permanent-debug-marker';
+                marker.innerHTML = '<strong style="color:red; display:block !important;">[DEBUG MARKER v1.0.10-DEBUG]</strong>';
+                narrativeText.appendChild(marker);
+            }
         }
-    }, 1000);
+        
+        console.log('Applied direct styles to narrative elements');
+    };
     
-    // Set a flag to indicate that initialization process has started
-    window.chaosGameInitStarted = true;
+    // Apply styles immediately
+    forceBasicStyles();
     
-    // Track initialization status for debugging
-    console.log("Initialization system loaded successfully");
-})();
+    // Also apply them after delays to ensure they're not overridden
+    setTimeout(forceBasicStyles, 100);
+    setTimeout(forceBasicStyles, 500);
+    setTimeout(forceBasicStyles, 1000);
+    setTimeout(forceBasicStyles, 2000);
+});

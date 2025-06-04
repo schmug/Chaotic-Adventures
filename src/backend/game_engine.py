@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from .llm_interface import LLMInterface
+from .enhanced_llm_interface import EnhancedLLMInterface, LLMProviderType, create_openrouter_interface, create_mock_interface
 from .prompts.templates import get_prompt
 
 
@@ -23,9 +24,20 @@ class GameEngine:
     # Directory for storing memory of past adventures
     MEMORY_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'adventure_memories')
     
-    def __init__(self):
+    def __init__(self, llm_provider: str = "openrouter", llm_model: Optional[str] = None, api_key: Optional[str] = None):
         """Initialize the game engine with default state."""
-        self.llm = LLMInterface()
+        # Initialize LLM with enhanced interface
+        try:
+            if llm_provider == "openrouter":
+                self.llm = create_openrouter_interface(api_key=api_key, tier="enhanced", model=llm_model)
+            elif llm_provider == "mock":
+                self.llm = create_mock_interface(tier="enhanced")
+            else:
+                # Fallback to enhanced interface with mock
+                self.llm = create_mock_interface(tier="enhanced")
+        except Exception as e:
+            print(f"Failed to initialize {llm_provider} LLM, falling back to mock: {e}")
+            self.llm = create_mock_interface(tier="enhanced")
         self.state = {
             "player_name": "",
             "current_location": "",

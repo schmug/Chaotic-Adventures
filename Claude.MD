@@ -62,6 +62,15 @@ An open-source, choose-your-own-adventure style text-based game leveraging a loc
 - **Ensure** generated code integrates easily with GitLab's automated CI/CD pipeline.
 
 ## 📝 Version History
+- **v1.4.0**:
+  - **NEW FEATURE**: OpenRouter AI integration with 10+ high-quality models
+  - Add comprehensive model selection UI with cost/quality information
+  - Implement cost tracking and usage monitoring for OpenRouter
+  - Create fallback provider chains for enhanced reliability
+  - Add new API endpoints: /api/llm/models and /api/llm/usage
+  - Support for multiple LLM tiers (basic, enhanced, advanced, master)
+  - Graceful fallback to mock mode when API key not configured
+
 - **v1.3.3**:
   - **SECURITY UPDATE**: Add comprehensive input validation with length limits
   - **SECURITY UPDATE**: Implement rate limiting on all API endpoints

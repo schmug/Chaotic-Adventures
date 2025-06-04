@@ -333,12 +333,25 @@
                         <label for="llm-mode-mock">Use Mock Responses (Instant)</label>
                     </div>
                     <div class="radio-group">
+                        <input type="radio" id="llm-mode-openrouter" name="llm-mode" value="openrouter">
+                        <label for="llm-mode-openrouter">OpenRouter AI (High Quality)</label>
+                    </div>
+                    <div class="radio-group">
                         <input type="radio" id="llm-mode-browser" name="llm-mode" value="browser">
                         <label for="llm-mode-browser">Run LLM in Browser (Offline Play)</label>
                     </div>
                     <div class="radio-group">
                         <input type="radio" id="llm-mode-server" name="llm-mode" value="server">
                         <label for="llm-mode-server">Use Server API (Best Quality)</label>
+                    </div>
+                </div>
+                <div id="openrouter-options" class="form-group hidden">
+                    <label for="openrouter-model">OpenRouter Model:</label>
+                    <select id="openrouter-model">
+                        <option value="">Loading models...</option>
+                    </select>
+                    <div class="model-info">
+                        <p class="small-text">Model details will appear when selected</p>
                     </div>
                 </div>
                 <div id="llm-loading" class="hidden">
